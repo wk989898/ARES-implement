@@ -90,7 +90,6 @@ class R(nn.Module):
 
     def __init__(self, output_dim, hide_dim=12) -> None:
         super().__init__()
-        # 12层的输入是固定的
         self.dense = nn.Sequential(
             Denselayer(12, hide_dim, activation=F.relu),
             Denselayer(hide_dim, output_dim),
@@ -131,12 +130,6 @@ class Y(nn.Module):
 
 
 class Convolution(nn.Module):
-    '''
-     𝑐 ∈ {0,1, ... , 𝐸}, 𝑙 ∈ {0, 1, ... , 𝐿}, 𝑚 ∈ {−𝑙, −𝑙 + 1, ... , 𝑙}
-     c:距离产生的 初始为 0-3
-     l:方位产生的 初始化为0
-     m:angular index
-    '''
 
     def __init__(self, input_dim, output_dim) -> None:
         super().__init__()
@@ -277,7 +270,6 @@ class NonLinearity(nn.Module):
             if key == 0:
                 V[key] = eta(V[key])
             else:
-                # torch.sqrt(x*x+eps)增加一个
                 temp = torch.sqrt(torch.einsum(
                     'acm,acm->c', V[key], V[key]))+self.bias[key]
                 V[key] = torch.einsum('acm,c->acm', V[key], temp)
