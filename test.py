@@ -1,8 +1,10 @@
 import torch
 import torch.nn.functional as F
-from _test.utils import getAtoms,getAtomInfo, onehot, V_like
+from _test.utils import getAtoms, getAtomInfo, onehot, V_like
 
 # init layer
+
+
 def testEmbed():
     onehot(V[0], atoms)
 
@@ -33,10 +35,10 @@ def testNorm():
     out = layer(V)
     return out
 
- # testNonLinearity
+# testNonLinearity
 def testNonLinearity():
     from _test.model import NonLinearity
-    layer = NonLinearity(24, 24)
+    layer = NonLinearity(24)
     layer.to(device)
     out = layer(V)
     return out
@@ -49,11 +51,10 @@ def testChannel():
     out = layer(V)
     return out
 
-#Denselayer
-
+# Denselayer
 def testDense():
     from _test.model import Denselayer as Dense
-    layer1 = Dense(24, 4,activation=F.elu)
+    layer1 = Dense(24, 4, activation=F.elu)
     layer2 = Dense(4, 256)
     layer3 = Dense(256, 1)
     layer1.to(device)
@@ -70,7 +71,7 @@ if __name__ == '__main__':
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     atoms = getAtoms('3q3z.pdb')
-    atom_data=getAtomInfo(atoms)
+    atom_data = getAtomInfo(atoms)
     V = V_like(len(atom_data), dim=3, cuda=True)
 
     testEmbed()

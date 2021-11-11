@@ -60,7 +60,7 @@ def unit_vector(x, y, mod=None):
 
 def radial_fn(Rab):
     '''
-    实现Radial函数
+    Radial 
     '''
     G = []
     sigma, n, miu = 1, 11, 12/11

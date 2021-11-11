@@ -8,7 +8,6 @@ from torch.nn.init import xavier_uniform_, zeros_
 from cg import clebsch_gordan
 
 
-
 class Net(nn.Module):
     '''
     20 layers
@@ -45,13 +44,12 @@ class Net(nn.Module):
         '''
         # default dim=3
         V = V_like(len(atoms), dim=self.dim, cuda=True)
-        
+
         # embed
         onehot(V[0], atoms)
 
         # store atom info
-        atom_data=getAtomInfo(atoms)
-
+        atom_data = getAtomInfo(atoms)
 
         V = self.model1(V, atom_data)
         print('model1 finish')
@@ -112,8 +110,8 @@ class Y(nn.Module):
         self.dim = dim
 
     def forward(self, vec):
-        vec = torch.tensor(vec).cuda()
-        r2 = torch.max(torch.sum(vec**2), eps)
+        vec = list(vec)
+        r2 = torch.tensor(max(sum([a**2 for a in vec]), eps))
         if self.dim == 2:
             x, y, z = vec
             return torch.stack([x * y / r2,
@@ -122,9 +120,9 @@ class Y(nn.Module):
                                 (2 * math.sqrt(3) * r2),
                                 z * x / r2,
                                 (x**2 - y**2) / (2. * r2)],
-                               dim=-1)
+                               dim=-1).cuda()
         if self.dim == 1:
-            return vec
+            return torch.tensor(vec).cuda()
         if self.dim == 0:
             return torch.ones((1)).cuda()
 
@@ -137,7 +135,7 @@ class Convolution(nn.Module):
         self.output_dim = output_dim
 
         # 0,0,0  0,1,1  1,0,1  1,1,0  1,1,1  1,1,2  0,2,2  1,2,1  1,2,2  2,2,0  2,2,1  2,2,2  2,0,2  2,1,1  2,1,2
-        # non-zero only for |𝑙𝑖 − 𝑙𝑓 | ≤ 𝑙𝑜 ≤ 𝑙𝑖 + 𝑙𝑓 
+        # non-zero only for |𝑙𝑖 − 𝑙𝑓 | ≤ 𝑙𝑜 ≤ 𝑙𝑖 + 𝑙𝑓
         self.C = [[0, 0, 0],  [0, 1, 1],  [1, 0, 1], [1, 1, 0], [1, 1, 1], [1, 1, 2], [0, 2, 2], [1, 2, 1], [1, 2, 2],
                   [2, 2, 0], [2, 2, 1], [2, 2, 2], [2, 0, 2], [2, 1, 1], [2, 1, 2]]
         # self.probO = {
@@ -157,15 +155,13 @@ class Convolution(nn.Module):
         #         2: [0, 1, 2]
         #     }
         # }
-
         # self.forward = self.forward_init
-        self.forward = self._forward
 
     def forward_init(self, V, atoms):
-        self.forward = self._forward
         return self.forward(V, atoms)
 
-    def _forward(self, V: dict, atom_data: list):
+    @torch.jit.script
+    def forward(self, V: dict, atom_data: list):
         O = V_like(len(atom_data), self.output_dim, cuda=True)
         for i, f, o in self.C:
             acif = []
@@ -177,7 +173,7 @@ class Convolution(nn.Module):
                     r = radial(mod)
                     y = angular(vec)
                     cif = cif + torch.einsum('c,f,ci->cif',
-                                         r, y, V[i][nei_idx])
+                                             r, y, V[i][nei_idx])
                 acif.append(cif)
 
             assert len(acif) == V[i].shape[0]
@@ -202,13 +198,7 @@ class Norm(nn.Module):
         struct O is not need
         '''
         for key in V:
-            # m = torch.sqrt(torch.einsum('acm,acm->a', V[key], V[key]))
-            # temp=V[key].permute(1,2,0)/m
-            # V[key]=temp.permute(2,0,1)
-            for i, tensor in enumerate(V[key]):
-                mean = torch.sqrt(torch.max(torch.sum(V[key][i]**2), eps))
-                # mean = torch.sqrt(torch.einsum('cm,cm->', V[key][i], V[key][i]))
-                V[key][i] = V[key][i] / mean
+            V[key] = F.normalize(V[key], eps=eps)
         return V
 
 
@@ -258,11 +248,9 @@ class NonLinearity(nn.Module):
         }
         self.output_dim = output_dim
 
-        # self.forward = self._forward
         # self.forward = self.forward_before
 
     def forward_before(self, V):
-
         self.forward(V)
 
     def forward(self, V):
@@ -273,14 +261,6 @@ class NonLinearity(nn.Module):
                 temp = torch.sqrt(torch.einsum(
                     'acm,acm->c', V[key], V[key]))+self.bias[key]
                 V[key] = torch.einsum('acm,c->acm', V[key], temp)
-            # for i, tensor in enumerate(V[key]):
-            #     if key == 0:
-            #         V[key] = eta(V[key])
-            #     else:
-            #         temp = torch.sqrt(torch.einsum(
-            #             'cm,cm->c', V[key][i], V[key][i]))+self.bias[key]
-            #         assert temp.shape == torch.Size([self.output_dim])
-            #         V[key][i] = torch.einsum('cm,c->cm', tensor, temp)
         assert V[0].shape[-1] == 1
         assert V[1].shape[-1] == 3
         assert V[2].shape[-1] == 5
