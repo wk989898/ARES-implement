@@ -110,9 +110,16 @@ class Y(nn.Module):
         self.dim = dim
 
     def forward(self, vec):
-        vec = list(vec)
-        r2 = torch.tensor(max(sum([a**2 for a in vec]), eps))
-        if self.dim == 2:
+        if self.dim == 0:
+            return torch.ones((1)).cuda()
+        elif self.dim == 1:
+            return torch.tensor(vec).cuda()
+        elif self.dim == 2:
+            if torch.is_tensor(vec):
+                vec=vec.clone().detach().requires_grad_(True)
+            else:
+                vec=torch.tensor(vec)
+            r2 = torch.max(torch.sum(vec**2), eps)
             x, y, z = vec
             return torch.stack([x * y / r2,
                                 y * z / r2,
@@ -121,11 +128,8 @@ class Y(nn.Module):
                                 z * x / r2,
                                 (x**2 - y**2) / (2. * r2)],
                                dim=-1).cuda()
-        if self.dim == 1:
-            return torch.tensor(vec).cuda()
-        if self.dim == 0:
-            return torch.ones((1)).cuda()
-
+        else:
+            raise RuntimeError('Y dim error')
 
 class Convolution(nn.Module):
 
@@ -160,7 +164,7 @@ class Convolution(nn.Module):
     def forward_init(self, V, atoms):
         return self.forward(V, atoms)
 
-    @torch.jit.script
+    # @torch.jit.script
     def forward(self, V: dict, atom_data: list):
         O = V_like(len(atom_data), self.output_dim, cuda=True)
         for i, f, o in self.C:
@@ -178,7 +182,6 @@ class Convolution(nn.Module):
 
             assert len(acif) == V[i].shape[0]
 
-            # cg?
             cg = clebsch_gordan(o, i, f).cuda()
             O[o].add_(torch.einsum(
                 'oif,acif->aco', cg, torch.stack(acif)))
