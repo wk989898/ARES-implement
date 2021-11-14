@@ -100,6 +100,8 @@ class Convolution(nn.Module):
         assert O[0].shape[-1] == 1
         assert O[1].shape[-1] == 3
         assert O[2].shape[-1] == 5
+        del V
+        
         return O
 
 
