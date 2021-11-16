@@ -3,9 +3,8 @@ import torch
 from math import sqrt, exp, log
 from math import pi
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-eps = torch.tensor(10e-9).to(device)
+eps = 1e-9
 
 def getAtoms(file):
     atoms = []
@@ -38,9 +37,9 @@ def V_like(n, dim, cuda=False):
     zero, one, two = torch.zeros((n, dim, 1)), torch.zeros(
         (n, dim, 3)), torch.zeros((n, dim, 5))
     if cuda:
-        zero = zero.to(device)
-        one = one.to(device)
-        two = two.to(device)
+        zero = zero.cuda()
+        one = one.cuda()
+        two = two.cuda()
     return {0: zero, 1: one, 2: two}
 
 

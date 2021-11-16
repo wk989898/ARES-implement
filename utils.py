@@ -3,7 +3,7 @@ import torch
 from math import sqrt, exp, log
 from math import pi
 
-eps = torch.tensor(10e-9).cuda()
+eps = 1e-9
 
 def getAtoms(file):
     atoms = []
