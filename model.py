@@ -1,4 +1,3 @@
-import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -67,7 +66,7 @@ class Model(nn.Module):
     def __init__(self, input_dim, dimension) -> None:
         super().__init__()
         self.interaction1 = SelfInteractionLayer(input_dim, dimension)
-        self.conv = Convolution(dimension, dimension)
+        self.conv=Convolution(dimension, dimension)
         self.norm = Norm()
         self.interaction2 = SelfInteractionLayer(dimension, dimension)
         self.nl = NonLinearity(dimension, dimension)
@@ -119,12 +118,12 @@ class Y(nn.Module):
                 vec=vec.clone().detach().requires_grad_(True)
             else:
                 vec=torch.tensor(vec)
-            r2 = torch.max(torch.sum(vec**2), eps)
+            r2 = torch.sum(vec**2).clamp_(min=eps)
             x, y, z = vec
             return torch.stack([x * y / r2,
                                 y * z / r2,
                                 (-x**2 - y**2 + 2. * z**2) /
-                                (2 * math.sqrt(3) * r2),
+                                (2 * 3**0.5 * r2),
                                 z * x / r2,
                                 (x**2 - y**2) / (2. * r2)],
                                dim=-1).cuda()
@@ -164,9 +163,9 @@ class Convolution(nn.Module):
     def forward_init(self, V, atoms):
         return self.forward(V, atoms)
 
-    # @torch.jit.script
     def forward(self, V: dict, atom_data: list):
-        O = V_like(len(atom_data), self.output_dim, cuda=True)
+        # O = V_like(len(atom_data), self.output_dim, cuda=True)
+        O=dict()
         for i, f, o in self.C:
             acif = []
             for info in atom_data:
@@ -183,9 +182,12 @@ class Convolution(nn.Module):
             assert len(acif) == V[i].shape[0]
 
             cg = clebsch_gordan(o, i, f).cuda()
-            O[o].add_(torch.einsum(
-                'oif,acif->aco', cg, torch.stack(acif)))
-
+            if o in O:
+                O[o].add_(torch.einsum(
+                    'oif,acif->aco', cg, torch.stack(acif)))
+            else:
+                O[o] = torch.einsum(
+                    'oif,acif->aco', cg, torch.stack(acif))
         assert O[0].shape[-1] == 1
         assert O[1].shape[-1] == 3
         assert O[2].shape[-1] == 5
