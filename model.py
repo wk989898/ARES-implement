@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from utils import Distance, V_like, getAtomInfo, isNan, radial_fn, onehot, eta, getNeighbours, unit_vector, eps
+from utils import distance, V_like, getAtomInfo, isNan, radial_fn, onehot, eta, getNeighbours, unit_vector, eps
 from torch.nn.init import xavier_uniform_, zeros_
 
 from cg import clebsch_gordan
@@ -12,20 +12,17 @@ class Net(nn.Module):
     20 layers
     '''
 
-    def __init__(self):
+    def __init__(self, device):
         super().__init__()
         self.dim = 3
-        self.model1 = Model(input_dim=3, dimension=24)
-        self.model2 = Model(input_dim=24, dimension=12)
-        self.model3 = Model(input_dim=12, dimension=4)
+        self.model1 = Model(input_dim=3, dimension=24, device=device)
+        self.model2 = Model(input_dim=24, dimension=12, device=device)
+        self.model3 = Model(input_dim=12, dimension=4, device=device)
         self.channelMean = Channel_mean()
         self.dense = nn.Sequential(
-            Denselayer(4, 4, activation=F.elu),
-            Denselayer(4, 256),
-            Denselayer(256, 1),
-            # Dense(4),
-            # Dense(256),
-            # Dense(1),
+            Dense(4, 4, activation=F.elu),
+            Dense(4, 256),
+            Dense(256, 1),
         )
 
     def forward(self, atoms):
@@ -39,10 +36,10 @@ class Net(nn.Module):
                     c:0-3
                         m: 1->3->5
         E as dimension
-        first 3 dimension 
+        first 3 dimension
         '''
         # default dim=3
-        V = V_like(len(atoms), dim=self.dim, cuda=True)
+        V = V_like(len(atoms), dim=self.dim)
 
         # embed
         onehot(V[0], atoms)
@@ -51,11 +48,8 @@ class Net(nn.Module):
         atom_data = getAtomInfo(atoms)
 
         V = self.model1(V, atom_data)
-        print('model1 finish')
         V = self.model2(V, atom_data)
-        print('model2 finish')
         V = self.model3(V, atom_data)
-        print('model3 finish')
         E = self.channelMean(V)
         E = self.dense(E)
 
@@ -63,13 +57,14 @@ class Net(nn.Module):
 
 
 class Model(nn.Module):
-    def __init__(self, input_dim, dimension) -> None:
+    def __init__(self, input_dim, dimension, device) -> None:
         super().__init__()
         self.interaction1 = SelfInteractionLayer(input_dim, dimension)
-        self.conv=Convolution(dimension, dimension)
+        self.conv = Convolution(dimension, dimension, device=device)
         self.norm = Norm()
         self.interaction2 = SelfInteractionLayer(dimension, dimension)
-        self.nl = NonLinearity(dimension, dimension)
+        self.nl = NonLinearity(dimension)
+        self.device = device
 
     def forward(self, V, atom_data):
         V = self.interaction1(V)
@@ -85,39 +80,38 @@ class R(nn.Module):
     distance
     '''
 
-    def __init__(self, output_dim, hide_dim=12) -> None:
+    def __init__(self, output_dim, hide_dim=12, device='cpu') -> None:
         super().__init__()
         self.dense = nn.Sequential(
-            Denselayer(12, hide_dim, activation=F.relu),
-            Denselayer(hide_dim, output_dim),
-
-            # Dense(12, hide_dim, activation=F.relu),
-            # Dense(hide_dim, output_dim)
+            Dense(12, hide_dim, activation=F.relu),
+            Dense(hide_dim, output_dim)
         )
+        self.device = device
 
     def forward(self, distance):
-        R = radial_fn(distance)
-        R = torch.tensor(R).cuda()
-        assert R.shape[0] == 12
-        R = self.dense(R)
-        return R
+        r = torch.tensor(radial_fn(distance)).to(self.device)
+        assert r.shape[0] == 12
+        r = self.dense(r)
+        return r
 
 
 class Y(nn.Module):
-    def __init__(self, dim) -> None:
+    '''
+    angular
+    '''
+
+    def __init__(self, dim, device='cpu') -> None:
         super().__init__()
         self.dim = dim
+        self.device = device
 
     def forward(self, vec):
+        vec = torch.tensor(vec).to(self.device)
         if self.dim == 0:
-            return torch.ones((1)).cuda()
+            return torch.ones((1)).to(self.device)
         elif self.dim == 1:
-            return torch.tensor(vec).cuda()
+            return vec
         elif self.dim == 2:
-            if torch.is_tensor(vec):
-                vec=vec.clone().detach().requires_grad_(True)
-            else:
-                vec=torch.tensor(vec)
             r2 = torch.sum(vec**2).clamp_(min=eps)
             x, y, z = vec
             return torch.stack([x * y / r2,
@@ -126,62 +120,42 @@ class Y(nn.Module):
                                 (2 * 3**0.5 * r2),
                                 z * x / r2,
                                 (x**2 - y**2) / (2. * r2)],
-                               dim=-1).cuda()
+                               dim=-1)
         else:
-            raise RuntimeError('Y dim error')
+            raise ValueError('angular dimension error')
+
 
 class Convolution(nn.Module):
-
-    def __init__(self, input_dim, output_dim) -> None:
+    def __init__(self, input_dim, output_dim, device) -> None:
         super().__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
-
+        self.device = device
+        self.radial = R(output_dim=self.output_dim, device=device)
+        self.angular = nn.ModuleList(
+            [Y(0, device=device), Y(1, device=device), Y(2, device=device)]
+        )
         # 0,0,0  0,1,1  1,0,1  1,1,0  1,1,1  1,1,2  0,2,2  1,2,1  1,2,2  2,2,0  2,2,1  2,2,2  2,0,2  2,1,1  2,1,2
         # non-zero only for |𝑙𝑖 − 𝑙𝑓 | ≤ 𝑙𝑜 ≤ 𝑙𝑖 + 𝑙𝑓
         self.C = [[0, 0, 0],  [0, 1, 1],  [1, 0, 1], [1, 1, 0], [1, 1, 1], [1, 1, 2], [0, 2, 2], [1, 2, 1], [1, 2, 2],
                   [2, 2, 0], [2, 2, 1], [2, 2, 2], [2, 0, 2], [2, 1, 1], [2, 1, 2]]
-        # self.probO = {
-        #     0: {
-        #         0: [0],
-        #         1: [1],
-        #         2: [2]
-        #     },
-        #     1: {
-        #         0: [1],
-        #         1: [0, 1, 2],
-        #         2: [1, 2]
-        #     },
-        #     2: {
-        #         0: [2],
-        #         1: [1, 2],
-        #         2: [0, 1, 2]
-        #     }
-        # }
-        # self.forward = self.forward_init
-
-    def forward_init(self, V, atoms):
-        return self.forward(V, atoms)
 
     def forward(self, V: dict, atom_data: list):
-        # O = V_like(len(atom_data), self.output_dim, cuda=True)
-        O=dict()
+        O = dict()
         for i, f, o in self.C:
             acif = []
             for info in atom_data:
                 cif = 0
-                radial = R(output_dim=self.output_dim).cuda()
-                angular = Y(dim=f).cuda()
                 for mod, vec, nei_idx in info:
-                    r = radial(mod)
-                    y = angular(vec)
+                    r = self.radial(mod)
+                    y = self.angular[f](vec)
                     cif = cif + torch.einsum('c,f,ci->cif',
                                              r, y, V[i][nei_idx])
                 acif.append(cif)
 
             assert len(acif) == V[i].shape[0]
 
-            cg = clebsch_gordan(o, i, f).cuda()
+            cg = clebsch_gordan(o, i, f).to(self.device)
             if o in O:
                 O[o].add_(torch.einsum(
                     'oif,acif->aco', cg, torch.stack(acif)))
@@ -218,19 +192,18 @@ class SelfInteractionLayer(nn.Module):
     def __init__(self, input_dim, output_dim) -> None:
         super().__init__()
         self.output_dim = output_dim
-        self.weight = xavier_uniform_(
-            torch.Tensor(output_dim, input_dim)).cuda()
-        self.bias = zeros_(torch.Tensor(output_dim)).cuda()
+        self.weight = nn.Parameter(xavier_uniform_(
+            torch.Tensor(output_dim, input_dim)))
+        self.bias = nn.Parameter(zeros_(torch.Tensor(output_dim)))
 
     def forward(self, V):
         '''
         [3,1]->[24,1]
         may be need new struct O
         '''
+        O = V
         if self.output_dim != V[0].shape[1]:
-            O = V_like(V[0].shape[0], dim=self.output_dim, cuda=True)
-        else:
-            O = V
+            O = V_like(V[0].shape[0], dim=self.output_dim)
         assert O[0].shape[1] == self.output_dim
 
         for key in V:
@@ -238,27 +211,24 @@ class SelfInteractionLayer(nn.Module):
             # need bias
             if key == 0:
                 O[key] = (torch.einsum('nij,ki->njk',
-                                       V[key], self.weight)+self.bias).permute(0, 2, 1)
+                                       V[key].to(self.bias.device), self.weight)+self.bias).permute(0, 2, 1)
             else:
                 O[key] = torch.einsum('nij,ki->nkj',
-                                      V[key], self.weight)
+                                      V[key].to(self.bias.device), self.weight)
+        del V
         return O
 
 
 class NonLinearity(nn.Module):
-
-    def __init__(self, input_dim, output_dim) -> None:
+    def __init__(self, output_dim) -> None:
         super().__init__()
+        self.b1=nn.Parameter(zeros_(torch.Tensor(output_dim)))
+        self.b2=nn.Parameter(zeros_(torch.Tensor(output_dim)))
         self.bias = {
-            1: zeros_(torch.Tensor(output_dim)).cuda(),
-            2: zeros_(torch.Tensor(output_dim)).cuda()
+            1:self.b1,
+            2:self.b2
         }
         self.output_dim = output_dim
-
-        # self.forward = self.forward_before
-
-    def forward_before(self, V):
-        self.forward(V)
 
     def forward(self, V):
         for key in V:
@@ -282,38 +252,7 @@ class Channel_mean(nn.Module):
         '''
         only V[0]
         '''
-        # print('channel',torch.sum(V[0],dim=0))
         return torch.sum(V[0], dim=0).squeeze()
-
-
-class Dense(torch.nn.Linear):
-    def __init__(self, input_dim, output_dim, bias=True, activation=None,
-                 weight_init=xavier_uniform_, bias_init=zeros_):
-        self.weight_init = weight_init
-        self.bias_init = bias_init
-        self.activation = activation
-        super(Dense, self).__init__(input_dim, output_dim, bias)
-
-    def reset_parameters(self):
-        """
-        Reinitialize model parameters.
-        """
-        self.weight_init(self.weight)
-        if self.bias is not None:
-            self.bias_init(self.bias)
-
-    def forward(self, E):
-        """
-        Args:
-            inputs (dict of torch.Tensor): SchNetPack format dictionary of input tensors.
-
-        Returns:
-            torch.Tensor: Output of the dense layer.
-        """
-        y = super(Dense, self).forward(E)
-        if self.activation:
-            y = self.activation(y)
-        return y
 
 
 def init_wb(m):
@@ -321,18 +260,14 @@ def init_wb(m):
         xavier_uniform_(m.weight)
         zeros_(m.bias)
 
-
-class Denselayer(nn.Module):
-    def __init__(self, input_dim, output_dim, activation=False):
+class Dense(nn.Module):
+    def __init__(self, input_dim, output_dim, activation=None):
         super().__init__()
-        self.input_dim = input_dim
+        self.dense = nn.Linear(input_dim, output_dim).apply(init_wb)
         self.activation = activation
-        self.linear = nn.Linear(input_dim, output_dim,
-                                bias=True).apply(init_wb)
 
     def forward(self, E):
-        assert E.shape == torch.Size([self.input_dim])
-        E = self.linear(E)
-        if self.activation:
-            E = self.activation(E, inplace=True)
-        return E
+        out = self.dense(E)
+        if self.activation is not None:
+            out = self.activation(out)
+        return out

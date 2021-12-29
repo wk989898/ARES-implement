@@ -25,7 +25,7 @@ def getAtomInfo(atoms):
     for atom in atoms:
         temp = []
         for ato in getNeighbours(atom, atoms):
-            mod = Distance(atom, ato)
+            mod = distance(atom, ato)
             vec = unit_vector(atom, ato, mod)
             nei_idx = atoms.index(ato)
             temp.append([mod, vec, nei_idx])
@@ -33,17 +33,13 @@ def getAtomInfo(atoms):
     return atom_data
 
 
-def V_like(n, dim, cuda=False):
+def V_like(n, dim):
     zero, one, two = torch.zeros((n, dim, 1)), torch.zeros(
         (n, dim, 3)), torch.zeros((n, dim, 5))
-    if cuda:
-        zero = zero.cuda()
-        one = one.cuda()
-        two = two.cuda()
     return {0: zero, 1: one, 2: two}
 
 
-def Distance(x, y):
+def distance(x, y):
     ans = 0
     for i in range(3):
         ans += (x['coordinate'][i]-y['coordinate'][i])**2
@@ -52,7 +48,7 @@ def Distance(x, y):
 
 def unit_vector(x, y, mod=None):
     if not mod:
-        mod = Distance(x, y)
+        mod = distance(x, y)
     vec = [(x['coordinate'][i]-y['coordinate'][i])/mod for i in range(3)]
     return vec
 
@@ -84,12 +80,11 @@ def onehot(V0, atoms):
 
 def getNeighbours(atom, atoms):
     '''
-    50
+    50 neighbours
     '''
     # arr_index=[i for i in range(len(atoms))]
     # arr_index.sort(key=lambda x:compare(atom.coordinate,atoms[x].coordinate))
     # return arr_index
-
     temp = atoms[:]
     temp.sort(key=lambda x: compare(atom['coordinate'], x['coordinate']))
     return temp[:50]

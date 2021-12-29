@@ -1,18 +1,18 @@
 
 import torch
 import torch.nn.functional as F
-from _test.utils import getAtoms, getAtomInfo, onehot, V_like
+from utils import getAtoms, getAtomInfo, onehot, V_like
 import os
 
 
-def testEmbed():
+def testEmbed(V):
     onehot(V[0], atoms)
 
 
 # self-interaction
 def testInteraction():
-    from _test.model import SelfInteractionLayer
-    layer = SelfInteractionLayer(3, 24)
+    from model import SelfInteractionLayer
+    layer = SelfInteractionLayer(3, 12)
     layer.cuda()
     out = layer(V)
     return out
@@ -20,8 +20,8 @@ def testInteraction():
 
 # Convolution
 def testConvolution():
-    from _test.model import Convolution
-    layer = Convolution(24, 24)
+    from model import Convolution
+    layer = Convolution(12, 12, device='cuda')
     layer.cuda()
     out = layer(V, atom_data)
     return out
@@ -29,45 +29,38 @@ def testConvolution():
 
 # Norm
 def testNorm():
-    from _test.model import Norm
+    from model import Norm
     layer = Norm()
     layer.cuda()
     out = layer(V)
     return out
 
-# testNonLinearity
-
-
+# NonLinearity
 def testNonLinearity():
-    from _test.model import NonLinearity
-    layer = NonLinearity(24)
+    from model import NonLinearity
+    layer = NonLinearity(12)
     layer.cuda()
     out = layer(V)
     return out
 
-
+# Channel
 def testChannel():
-    from _test.model import Channel_mean
+    from model import Channel_mean
     layer = Channel_mean()
     layer.cuda()
     out = layer(V)
     return out
 
-# Denselayer
-
-
+# Dense
 def testDense():
-    from _test.model import Denselayer as Dense
-    layer1 = Dense(24, 4, activation=F.elu)
-    layer2 = Dense(4, 256)
-    layer3 = Dense(256, 1)
-    layer1.cuda()
-    layer2.cuda()
-    layer3.cuda()
-    E.cuda()
-    out = layer1(E)
-    out = layer2(out)
-    out = layer3(out)
+    from model import Dense
+    dense = torch.nn.Sequential(
+        Dense(12, 4, activation=F.elu),
+        Dense(4, 256),
+        Dense(256, 1),
+    )
+    dense.cuda()
+    out = dense(E)
     return out
 
 
@@ -75,9 +68,9 @@ if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = '3'
     atoms = getAtoms('3q3z.pdb')
     atom_data = getAtomInfo(atoms)
-    V = V_like(len(atom_data), dim=3, cuda=True)
+    V = V_like(len(atom_data), dim=3)
 
-    testEmbed()
+    testEmbed(V)
     V = testInteraction()
     V = testConvolution()
     V = testNorm()
