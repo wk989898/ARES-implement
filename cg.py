@@ -72,6 +72,7 @@ def get_d_null_space(l1, l2, l3, eps=1e-10):
 @lru_cache
 def clebsch_gordan(l1, l2, l3,device):
     """
+    https://github.com/mariogeiger/se3cnn/blob/afd027c72e87f2c390e0a2e7c6cfc8deea34b0cf/se3cnn/SO3.py#L235
     Computes the Clebsch–Gordan coefficients
     out in filter
     D(l1)_il D(l2)_jm D(l3)_kn Q_lmn == Q_ijk
