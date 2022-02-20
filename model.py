@@ -2,9 +2,9 @@ from collections import defaultdict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from utils import distance, V_like, getAtomInfo, isNan, radial_fn, onehot, eta, getNeighbours, unit_vector
+from utils import V_like, getAtomInfo, onehot, eta
 from torch.nn.init import xavier_uniform_, zeros_
-from cg import clebsch_gordan
+from cg import clebsch_gordan, O3_clebsch_gordan
 
 
 class Net(nn.Module):
@@ -144,7 +144,7 @@ class Convolution(nn.Module):
                   [2, 2, 0], [2, 2, 1], [2, 2, 2], [2, 0, 2], [2, 1, 1], [2, 1, 2]]
         self.CG = dict()
         for i, f, o in self.C:
-            self.CG[(i, f, o)] = clebsch_gordan(o, i, f).to(device)
+            self.CG[(i, f, o)] = O3_clebsch_gordan(o, i, f,device=device)
 
     def forward(self, V, atom_data):
         O = defaultdict(list)
@@ -155,7 +155,7 @@ class Convolution(nn.Module):
                     rads, device=self.device), torch.tensor(vecs, device=self.device)
                 r = self.radial(rads)
                 y = self.angular[f](vecs)
-                
+
                 order = torch.stack([V[i][nei_idxs[k]]
                                     for k in range(len(nei_idxs))])
                 cif = torch.einsum('lc,lf,lci->lcif',

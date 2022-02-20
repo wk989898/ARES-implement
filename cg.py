@@ -1,11 +1,14 @@
 import torch
+from functools import lru_cache
 
-from lie_learn.representations.SO3.wigner_d import wigner_D_matrix
-import scipy
-import scipy.linalg
-import gc
+@lru_cache
+def O3_clebsch_gordan(l_out, l_in, l_filter,device):
+    from e3nn import o3
+    cg=o3.wigner_3j(l_out, l_in, l_filter).to(device)  # [m_out, m_in, m]
+    return cg
 
 def irr_repr(order, alpha, beta, gamma, dtype=None, device=None):
+    from lie_learn.representations.SO3.wigner_d import wigner_D_matrix
     """
     irreducible representation of SO3
     - compatible with compose and spherical_harmonics
@@ -28,7 +31,9 @@ def irr_repr(order, alpha, beta, gamma, dtype=None, device=None):
 ################################################################################
 
 def get_d_null_space(l1, l2, l3, eps=1e-10):
-
+    import scipy
+    import scipy.linalg
+    import gc
     def _DxDxD(a, b, c):
         D1 = irr_repr(l1, a, b, c)
         D2 = irr_repr(l2, a, b, c)
@@ -64,7 +69,8 @@ def get_d_null_space(l1, l2, l3, eps=1e-10):
 # # ################################################################################
 # # # Clebsch Gordan
 # # ################################################################################
-def clebsch_gordan(l1, l2, l3):
+@lru_cache
+def clebsch_gordan(l1, l2, l3,device):
     """
     Computes the Clebsch–Gordan coefficients
     out in filter
@@ -88,7 +94,7 @@ def clebsch_gordan(l1, l2, l3):
         cg=_clebsch_gordan(l2, l3, l1).transpose(0, 2).transpose(1, 2).contiguous()
     if l3 <= l1 <= l2:
         cg=_clebsch_gordan(l3, l1, l2).transpose(0, 2).transpose(0, 1).contiguous()
-    return cg
+    return cg.to(device)
 
 def _clebsch_gordan(l1, l2, l3):
     """
@@ -108,7 +114,6 @@ def _clebsch_gordan(l1, l2, l3):
 
     if Q.sum() < 0:
             Q.neg_()
-
     return Q  # [m1, m2, m3]
 
 
@@ -116,4 +121,5 @@ if __name__=='__main__':
     # 0,0,0  0,1,1  1,0,1  1,1,0  1,1,1  1,1,2  0,2,2  1,2,1  1,2,2  2,2,0  2,2,1  2,2,2  2,0,2  2,1,1  2,1,2
     # out in filter
     C=clebsch_gordan(0,2,2)
-    print(C.shape)
+    Cg=O3_clebsch_gordan(0,2,2)
+    print(C,Cg)
