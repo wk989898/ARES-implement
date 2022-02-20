@@ -69,17 +69,17 @@ def testNet():
     return pred
 
 if __name__ == '__main__':
-    os.environ['CUDA_VISIBLE_DEVICES'] = '3'
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     atoms = getAtoms('S_000028_476.pdb')
-    # pred=testNet()
-    atom_data = getAtomInfo(atoms)
-    V = V_like(len(atom_data), dim=3)
-    testEmbed(V)
-    V = testInteraction()
-    V = testConvolution()
-    V = testNorm()
-    V = testNonLinearity()
-    E = testChannel()
-    pred = testDense()
+    pred=testNet()
+    # atom_data = getAtomInfo(atoms)
+    # V = V_like(len(atom_data), dim=3)
+    # testEmbed(V)
+    # V = testInteraction()
+    # V = testConvolution()
+    # V = testNorm()
+    # V = testNonLinearity()
+    # E = testChannel()
+    # pred = testDense()
     print(pred.item())
     print('test finish!')

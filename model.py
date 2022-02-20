@@ -2,7 +2,7 @@ from collections import defaultdict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from utils import distance, V_like, getAtomInfo, isNan, radial_fn, onehot, eta, getNeighbours, unit_vector, eps
+from utils import distance, V_like, getAtomInfo, isNan, radial_fn, onehot, eta, getNeighbours, unit_vector
 from torch.nn.init import xavier_uniform_, zeros_
 from cg import clebsch_gordan
 
@@ -88,7 +88,7 @@ class R(nn.Module):
         )
 
     def forward(self, r):
-        assert r.shape[0] == 12
+        assert r.shape[1] == 12
         r = self.dense(r)
         return r
 
@@ -100,15 +100,19 @@ class Y(nn.Module):
 
     def __init__(self, dim) -> None:
         super().__init__()
-        def Y_fn(dim):
+
+        def yield_Y_fn(dim):
             if dim == 0:
-                return lambda x: torch.ones((1)).to(x.device)
+                def fn(xs):
+                    return torch.ones((xs.shape[0], 1)).to(xs.device)
             elif dim == 1:
-                return lambda x: x
+                def fn(xs):
+                    return xs
             elif dim == 2:
-                def fn(vec):
-                    r2 = torch.sum(vec**2).clamp_(min=eps)
-                    x, y, z = vec
+                def fn(vecs):
+                    eps = 1e-9
+                    r2 = torch.sum(vecs**2, dim=1).clamp_(min=eps)
+                    x, y, z = vecs[..., 0], vecs[..., 1], vecs[..., 2]
                     return torch.stack([x * y / r2,
                                         y * z / r2,
                                         (-x**2 - y**2 + 2. * z**2) /
@@ -116,22 +120,22 @@ class Y(nn.Module):
                                         z * x / r2,
                                         (x**2 - y**2) / (2. * r2)],
                                        dim=-1)
-                return lambda x: fn(x)
             else:
                 raise ValueError('angular dimension error')
 
-        self.Y_fn = Y_fn(dim)
+            return fn
 
-    def forward(self, vec):
-        return self.Y_fn(vec)
+        self.Y_fn = torch.jit.script(yield_Y_fn(dim))
+
+    def forward(self, vecs):
+        return self.Y_fn(vecs)
+
 
 class Convolution(nn.Module):
     def __init__(self, input_dim, output_dim, device) -> None:
         super().__init__()
-        self.input_dim = input_dim
-        self.output_dim = output_dim
         self.device = device
-        self.radial = R(output_dim=self.output_dim)
+        self.radial = R(output_dim=output_dim)
         self.angular = nn.ModuleList(
             [Y(0), Y(1), Y(2)]
         )
@@ -142,22 +146,21 @@ class Convolution(nn.Module):
         for i, f, o in self.C:
             self.CG[(i, f, o)] = clebsch_gordan(o, i, f).to(device)
 
-    def forward(self, V: dict, atom_data: list):
+    def forward(self, V, atom_data):
         O = defaultdict(list)
         for i, f, o in self.C:
             acif = []
-            order = V[i]
-            for info in atom_data:
-                cif = []
-                for rad, mod, vec, nei_idx in info:
-                    rad, vec = torch.tensor(
-                        rad, device=self.device), torch.tensor(vec, device=self.device)
-                    r = self.radial(rad)
-                    y = self.angular[f](vec)
-                    cif.append(torch.einsum('c,f,ci->cif',
-                                            r, y, order[nei_idx]))
-                acif.append(torch.stack(cif).sum(dim=0))
-
+            for rads, vecs, nei_idxs in atom_data:
+                rads, vecs = torch.tensor(
+                    rads, device=self.device), torch.tensor(vecs, device=self.device)
+                r = self.radial(rads)
+                y = self.angular[f](vecs)
+                
+                order = torch.stack([V[i][nei_idxs[k]]
+                                    for k in range(len(nei_idxs))])
+                cif = torch.einsum('lc,lf,lci->lcif',
+                                   r, y, order).sum(dim=0)
+                acif.append(cif)
             assert len(acif) == V[i].shape[0]
             O[o].append(torch.einsum(
                 'oif,acif->aco', self.CG[(i, f, o)], torch.stack(acif)))
@@ -173,21 +176,18 @@ class Convolution(nn.Module):
 
 
 class Norm(nn.Module):
-    def __init__(self) -> None:
+    def __init__(self, eps=1e-9) -> None:
         super().__init__()
+        self.eps = eps
 
     def forward(self, V):
-        '''
-        struct O is not need
-        '''
         for key in V:
-            V[key] = F.normalize(V[key], eps=eps)
+            V[key] = F.normalize(V[key], eps=self.eps)
         return V
 
 
 class SelfInteractionLayer(nn.Module):
     '''
-    SchNet
      bias term is only used when operating on angular order 0
     '''
 

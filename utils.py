@@ -3,7 +3,6 @@ import torch
 from math import sqrt, exp, log
 from math import pi
 
-eps = 1e-9
 
 def getAtoms(file):
     atoms = []
@@ -23,14 +22,13 @@ def getAtoms(file):
 def getAtomInfo(atoms):
     atom_data = []
     for atom in atoms:
-        temp = []
+        radicals,vecs,nei_idxs=[],[],[]
         for ato in getNeighbours(atom, atoms):
             mod=distance(atom, ato)
-            radical = radial_fn(mod)
-            vec = unit_vector(atom, ato, mod)
-            nei_idx = atoms.index(ato)
-            temp.append([radical,mod, vec, nei_idx])
-        atom_data.append(temp)
+            radicals.append(radial_fn(mod))
+            vecs.append(unit_vector(atom, ato, mod))
+            nei_idxs.append(atoms.index(ato))
+        atom_data.append([radicals,vecs,nei_idxs])
     return atom_data
 
 
@@ -41,6 +39,7 @@ def V_like(n, dim):
 
 
 def distance(x, y):
+    eps=1e-9
     ans = 0
     for i in range(3):
         ans += (x['coordinate'][i]-y['coordinate'][i])**2
