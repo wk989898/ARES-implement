@@ -1,4 +1,3 @@
-from functools import lru_cache
 import torch
 
 from lie_learn.representations.SO3.wigner_d import wigner_D_matrix
@@ -65,16 +64,12 @@ def get_d_null_space(l1, l2, l3, eps=1e-10):
 # # ################################################################################
 # # # Clebsch Gordan
 # # ################################################################################
-# cg_cache=dict()
-# @lru_cache()
 def clebsch_gordan(l1, l2, l3):
     """
     Computes the Clebsch–Gordan coefficients
     out in filter
     D(l1)_il D(l2)_jm D(l3)_kn Q_lmn == Q_ijk
     """
-    # if (l1, l2, l3) in cg_cache:
-    #     return cg_cache[(l1, l2, l3)]
     if torch.is_tensor(l1):
         l1 = l1.item()
     if torch.is_tensor(l2):
@@ -93,7 +88,6 @@ def clebsch_gordan(l1, l2, l3):
         cg=_clebsch_gordan(l2, l3, l1).transpose(0, 2).transpose(1, 2).contiguous()
     if l3 <= l1 <= l2:
         cg=_clebsch_gordan(l3, l1, l2).transpose(0, 2).transpose(0, 1).contiguous()
-    # cg_cache[(l1, l2, l3)]=cg
     return cg
 
 def _clebsch_gordan(l1, l2, l3):
