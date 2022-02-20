@@ -42,7 +42,7 @@ def testNonLinearity():
     out = layer(V)
     return out
 
-# Channel
+# Channel mean
 def testChannel():
     from model import Channel_mean
     layer = Channel_mean()
@@ -62,6 +62,7 @@ def testDense():
     out = dense(E)
     return out
 
+# All
 def testNet():
     from model import Net
     net=Net(device='cuda')
@@ -69,7 +70,6 @@ def testNet():
     return pred
 
 if __name__ == '__main__':
-    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     atoms = getAtoms('S_000028_476.pdb')
     pred=testNet()
     # atom_data = getAtomInfo(atoms)
