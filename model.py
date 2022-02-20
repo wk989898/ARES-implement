@@ -1,9 +1,9 @@
+from collections import defaultdict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from utils import distance, V_like, getAtomInfo, isNan, radial_fn, onehot, eta, getNeighbours, unit_vector, eps
 from torch.nn.init import xavier_uniform_, zeros_
-
 from cg import clebsch_gordan
 
 
@@ -24,6 +24,7 @@ class Net(nn.Module):
             Dense(4, 256),
             Dense(256, 1),
         )
+        self.to(device)
 
     def forward(self, atoms):
         '''
@@ -64,7 +65,6 @@ class Model(nn.Module):
         self.norm = Norm()
         self.interaction2 = SelfInteractionLayer(dimension, dimension)
         self.nl = NonLinearity(dimension)
-        self.device = device
 
     def forward(self, V, atom_data):
         V = self.interaction1(V)
@@ -80,16 +80,14 @@ class R(nn.Module):
     distance
     '''
 
-    def __init__(self, output_dim, hide_dim=12, device='cpu') -> None:
+    def __init__(self, output_dim, hide_dim=12) -> None:
         super().__init__()
         self.dense = nn.Sequential(
             Dense(12, hide_dim, activation=F.relu),
             Dense(hide_dim, output_dim)
         )
-        self.device = device
 
-    def forward(self, distance):
-        r = torch.tensor(radial_fn(distance)).to(self.device)
+    def forward(self, r):
         assert r.shape[0] == 12
         r = self.dense(r)
         return r
@@ -100,30 +98,32 @@ class Y(nn.Module):
     angular
     '''
 
-    def __init__(self, dim, device='cpu') -> None:
+    def __init__(self, dim) -> None:
         super().__init__()
-        self.dim = dim
-        self.device = device
+        def Y_fn(dim):
+            if dim == 0:
+                return lambda x: torch.ones((1)).to(x.device)
+            elif dim == 1:
+                return lambda x: x
+            elif dim == 2:
+                def fn(vec):
+                    r2 = torch.sum(vec**2).clamp_(min=eps)
+                    x, y, z = vec
+                    return torch.stack([x * y / r2,
+                                        y * z / r2,
+                                        (-x**2 - y**2 + 2. * z**2) /
+                                        (2 * 3**0.5 * r2),
+                                        z * x / r2,
+                                        (x**2 - y**2) / (2. * r2)],
+                                       dim=-1)
+                return lambda x: fn(x)
+            else:
+                raise ValueError('angular dimension error')
+
+        self.Y_fn = Y_fn(dim)
 
     def forward(self, vec):
-        vec = torch.tensor(vec).to(self.device)
-        if self.dim == 0:
-            return torch.ones((1)).to(self.device)
-        elif self.dim == 1:
-            return vec
-        elif self.dim == 2:
-            r2 = torch.sum(vec**2).clamp_(min=eps)
-            x, y, z = vec
-            return torch.stack([x * y / r2,
-                                y * z / r2,
-                                (-x**2 - y**2 + 2. * z**2) /
-                                (2 * 3**0.5 * r2),
-                                z * x / r2,
-                                (x**2 - y**2) / (2. * r2)],
-                               dim=-1)
-        else:
-            raise ValueError('angular dimension error')
-
+        return self.Y_fn(vec)
 
 class Convolution(nn.Module):
     def __init__(self, input_dim, output_dim, device) -> None:
@@ -131,37 +131,39 @@ class Convolution(nn.Module):
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.device = device
-        self.radial = R(output_dim=self.output_dim, device=device)
+        self.radial = R(output_dim=self.output_dim)
         self.angular = nn.ModuleList(
-            [Y(0, device=device), Y(1, device=device), Y(2, device=device)]
+            [Y(0), Y(1), Y(2)]
         )
-        # 0,0,0  0,1,1  1,0,1  1,1,0  1,1,1  1,1,2  0,2,2  1,2,1  1,2,2  2,2,0  2,2,1  2,2,2  2,0,2  2,1,1  2,1,2
         # non-zero only for |𝑙𝑖 − 𝑙𝑓 | ≤ 𝑙𝑜 ≤ 𝑙𝑖 + 𝑙𝑓
         self.C = [[0, 0, 0],  [0, 1, 1],  [1, 0, 1], [1, 1, 0], [1, 1, 1], [1, 1, 2], [0, 2, 2], [1, 2, 1], [1, 2, 2],
                   [2, 2, 0], [2, 2, 1], [2, 2, 2], [2, 0, 2], [2, 1, 1], [2, 1, 2]]
+        self.CG = dict()
+        for i, f, o in self.C:
+            self.CG[(i, f, o)] = clebsch_gordan(o, i, f).to(device)
 
     def forward(self, V: dict, atom_data: list):
-        O = dict()
+        O = defaultdict(list)
         for i, f, o in self.C:
             acif = []
+            order = V[i]
             for info in atom_data:
-                cif = 0
-                for mod, vec, nei_idx in info:
-                    r = self.radial(mod)
+                cif = []
+                for rad, mod, vec, nei_idx in info:
+                    rad, vec = torch.tensor(
+                        rad, device=self.device), torch.tensor(vec, device=self.device)
+                    r = self.radial(rad)
                     y = self.angular[f](vec)
-                    cif = cif + torch.einsum('c,f,ci->cif',
-                                             r, y, V[i][nei_idx])
-                acif.append(cif)
+                    cif.append(torch.einsum('c,f,ci->cif',
+                                            r, y, order[nei_idx]))
+                acif.append(torch.stack(cif).sum(dim=0))
 
             assert len(acif) == V[i].shape[0]
+            O[o].append(torch.einsum(
+                'oif,acif->aco', self.CG[(i, f, o)], torch.stack(acif)))
 
-            cg = clebsch_gordan(o, i, f).to(self.device)
-            if o in O:
-                O[o].add_(torch.einsum(
-                    'oif,acif->aco', cg, torch.stack(acif)))
-            else:
-                O[o] = torch.einsum(
-                    'oif,acif->aco', cg, torch.stack(acif))
+        for i in range(len(O)):
+            O[i] = torch.stack(O[i]).sum(dim=0)
         assert O[0].shape[-1] == 1
         assert O[1].shape[-1] == 3
         assert O[2].shape[-1] == 5
@@ -222,11 +224,11 @@ class SelfInteractionLayer(nn.Module):
 class NonLinearity(nn.Module):
     def __init__(self, output_dim) -> None:
         super().__init__()
-        self.b1=nn.Parameter(zeros_(torch.Tensor(output_dim)))
-        self.b2=nn.Parameter(zeros_(torch.Tensor(output_dim)))
+        self.b1 = nn.Parameter(zeros_(torch.Tensor(output_dim)))
+        self.b2 = nn.Parameter(zeros_(torch.Tensor(output_dim)))
         self.bias = {
-            1:self.b1,
-            2:self.b2
+            1: self.b1,
+            2: self.b2
         }
         self.output_dim = output_dim
 
@@ -259,6 +261,7 @@ def init_wb(m):
     if isinstance(m, nn.Linear):
         xavier_uniform_(m.weight)
         zeros_(m.bias)
+
 
 class Dense(nn.Module):
     def __init__(self, input_dim, output_dim, activation=None):

@@ -25,10 +25,11 @@ def getAtomInfo(atoms):
     for atom in atoms:
         temp = []
         for ato in getNeighbours(atom, atoms):
-            mod = distance(atom, ato)
+            mod=distance(atom, ato)
+            radical = radial_fn(mod)
             vec = unit_vector(atom, ato, mod)
             nei_idx = atoms.index(ato)
-            temp.append([mod, vec, nei_idx])
+            temp.append([radical,mod, vec, nei_idx])
         atom_data.append(temp)
     return atom_data
 
@@ -62,7 +63,7 @@ def radial_fn(Rab):
     return G
 
 
-def eta(x: torch.Tensor):
+def eta(x):
     return torch.log(0.5*torch.exp(x)+0.5)
 
 

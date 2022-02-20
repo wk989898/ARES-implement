@@ -1,12 +1,16 @@
 from functools import lru_cache
 import torch
 
+from lie_learn.representations.SO3.wigner_d import wigner_D_matrix
+import scipy
+import scipy.linalg
+import gc
+
 def irr_repr(order, alpha, beta, gamma, dtype=None, device=None):
     """
     irreducible representation of SO3
     - compatible with compose and spherical_harmonics
     """
-    from lie_learn.representations.SO3.wigner_d import wigner_D_matrix
     abc = [alpha, beta, gamma]
     for i, x in enumerate(abc):
         if torch.is_tensor(x):
@@ -25,9 +29,6 @@ def irr_repr(order, alpha, beta, gamma, dtype=None, device=None):
 ################################################################################
 
 def get_d_null_space(l1, l2, l3, eps=1e-10):
-    import scipy
-    import scipy.linalg
-    import gc
 
     def _DxDxD(a, b, c):
         D1 = irr_repr(l1, a, b, c)
@@ -64,7 +65,7 @@ def get_d_null_space(l1, l2, l3, eps=1e-10):
 # # ################################################################################
 # # # Clebsch Gordan
 # # ################################################################################
-cg_cache=dict()
+# cg_cache=dict()
 # @lru_cache()
 def clebsch_gordan(l1, l2, l3):
     """
@@ -72,8 +73,8 @@ def clebsch_gordan(l1, l2, l3):
     out in filter
     D(l1)_il D(l2)_jm D(l3)_kn Q_lmn == Q_ijk
     """
-    if (l1, l2, l3) in cg_cache:
-        return cg_cache[(l1, l2, l3)]
+    # if (l1, l2, l3) in cg_cache:
+    #     return cg_cache[(l1, l2, l3)]
     if torch.is_tensor(l1):
         l1 = l1.item()
     if torch.is_tensor(l2):
@@ -92,7 +93,7 @@ def clebsch_gordan(l1, l2, l3):
         cg=_clebsch_gordan(l2, l3, l1).transpose(0, 2).transpose(1, 2).contiguous()
     if l3 <= l1 <= l2:
         cg=_clebsch_gordan(l3, l1, l2).transpose(0, 2).transpose(0, 1).contiguous()
-    cg_cache[(l1, l2, l3)]=cg
+    # cg_cache[(l1, l2, l3)]=cg
     return cg
 
 def _clebsch_gordan(l1, l2, l3):

@@ -1,4 +1,3 @@
-
 import torch
 import torch.nn.functional as F
 from utils import getAtoms, getAtomInfo, onehot, V_like
@@ -63,20 +62,24 @@ def testDense():
     out = dense(E)
     return out
 
+def testNet():
+    from model import Net
+    net=Net(device='cuda')
+    pred=net(atoms)
+    return pred
 
 if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = '3'
-    atoms = getAtoms('3q3z.pdb')
+    atoms = getAtoms('S_000028_476.pdb')
+    # pred=testNet()
     atom_data = getAtomInfo(atoms)
     V = V_like(len(atom_data), dim=3)
-
     testEmbed(V)
     V = testInteraction()
     V = testConvolution()
     V = testNorm()
     V = testNonLinearity()
     E = testChannel()
-    E = testDense()
-
-    print(E.item())
+    pred = testDense()
+    print(pred.item())
     print('test finish!')
