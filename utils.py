@@ -1,8 +1,7 @@
-import numpy as np
 import torch
-from math import sqrt, exp, log
+from math import sqrt, exp
 from math import pi
-
+import re
 
 def getAtoms(file):
     atoms = []
@@ -22,13 +21,13 @@ def getAtoms(file):
 def getAtomInfo(atoms):
     atom_data = []
     for atom in atoms:
-        radicals,vecs,nei_idxs=[],[],[]
+        radicals, vecs, nei_idxs = [], [], []
         for ato in getNeighbours(atom, atoms):
-            mod=distance(atom, ato)
+            mod = distance(atom, ato)
             radicals.append(radial_fn(mod))
             vecs.append(unit_vector(atom, ato, mod))
             nei_idxs.append(atoms.index(ato))
-        atom_data.append([radicals,vecs,nei_idxs])
+        atom_data.append([radicals, vecs, nei_idxs])
     return atom_data
 
 
@@ -39,7 +38,7 @@ def V_like(n, dim):
 
 
 def distance(x, y):
-    eps=1e-9
+    eps = 1e-9
     ans = 0
     for i in range(3):
         ans += (x['coordinate'][i]-y['coordinate'][i])**2
@@ -68,17 +67,17 @@ def eta(x):
 
 def onehot(V0, atoms):
     n = len(atoms)
+    tabel = {
+        'C': 0,
+        'O': 1,
+        'N': 2
+    }
     for i in range(n):
-        Ele = atoms[i]['Ele']
-        if Ele == 'C':
-            V0[i][0][0] = 1
-        elif Ele == 'O':
-            V0[i][1][0] = 1
-        elif Ele == 'N':
-            V0[i][2][0] = 1
+        ele = re.sub(r'[0-9]+', '', atoms[i]['Ele']).upper()
+        if ele in tabel:
+            V0[i,tabel[ele],0] = 1
 
-
-def getNeighbours(atom, atoms):
+def getNeighbours(atom, atoms,k=50):
     '''
     50 neighbours
     '''
@@ -87,7 +86,7 @@ def getNeighbours(atom, atoms):
     # return arr_index
     temp = atoms[:]
     temp.sort(key=lambda x: compare(atom['coordinate'], x['coordinate']))
-    return temp[:50]
+    return temp[:k]
 
 
 def compare(x, y):
@@ -95,7 +94,3 @@ def compare(x, y):
     for i in range(3):
         ans += (y[i]-x[i])**2
     return ans
-
-
-def isNan(x):
-    return torch.any(torch.isnan(x))

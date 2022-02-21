@@ -144,20 +144,18 @@ class Convolution(nn.Module):
                   [2, 2, 0], [2, 2, 1], [2, 2, 2], [2, 0, 2], [2, 1, 1], [2, 1, 2]]
         self.CG = dict()
         for i, f, o in self.C:
-            self.CG[(i, f, o)] = O3_clebsch_gordan(o, i, f,device=device)
+            self.CG[(i, f, o)] = O3_clebsch_gordan(o, i, f, device=device)
 
     def forward(self, V, atom_data):
         O = defaultdict(list)
         for i, f, o in self.C:
             acif = []
             for rads, vecs, nei_idxs in atom_data:
-                rads, vecs = torch.tensor(
-                    rads, device=self.device), torch.tensor(vecs, device=self.device)
+                rads, vecs, nei_idxs = torch.tensor(
+                    rads, device=self.device), torch.tensor(vecs, device=self.device), torch.tensor(nei_idxs, device=self.device)
                 r = self.radial(rads)
                 y = self.angular[f](vecs)
-
-                order = torch.stack([V[i][nei_idxs[k]]
-                                    for k in range(len(nei_idxs))])
+                order = torch.index_select(V[i], dim=0, index=nei_idxs)
                 cif = torch.einsum('lc,lf,lci->lcif',
                                    r, y, order).sum(dim=0)
                 acif.append(cif)

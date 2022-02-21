@@ -1,7 +1,6 @@
 import torch
 import torch.nn.functional as F
 from utils import getAtoms, getAtomInfo, onehot, V_like
-import os
 
 
 def testEmbed(V):
