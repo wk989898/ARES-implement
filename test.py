@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from utils import getAtoms, getAtomInfo, onehot, V_like
+from utils import getAtoms, getScore, getAtomInfo, onehot, V_like
 
 
 def testEmbed(V):
@@ -64,13 +64,15 @@ def testDense():
 # All
 def testNet():
     from model import Net
-    net=Net(device='cuda')
-    pred=net(atoms)
+    net = Net(device='cuda')
+    pred = net(atoms)
     return pred
+
 
 if __name__ == '__main__':
     atoms = getAtoms('S_000028_476.pdb')
-    pred=testNet()
+    score = getScore('S_000028_476.pdb')
+    pred = testNet()
     # atom_data = getAtomInfo(atoms)
     # V = V_like(len(atom_data), dim=3)
     # testEmbed(V)
@@ -80,5 +82,5 @@ if __name__ == '__main__':
     # V = testNonLinearity()
     # E = testChannel()
     # pred = testDense()
-    print(pred.item())
+    print(pred.item(),score)
     print('test finish!')

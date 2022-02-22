@@ -13,10 +13,15 @@ def getAtoms(file):
                 x, y, z = line[30:38], line[38:46], line[46:54]
                 # splitted_line = [line[:6], , line[12:16], line[17:20], line[21], line[22:26], ]
                 atoms.append({'serial': serial.strip(),
-                              'Ele': Ele.strip(),
+                              'Ele': re.sub(r'[^a-zA-Z]', '', Ele).upper().strip(),
                               'coordinate': [float(x.strip()), float(y.strip()), float(z.strip())]})
         return atoms
 
+def getScore(file):
+    with open(file, 'r') as f:
+        for line in f:
+            if line[:5] == 'score':
+                return line[6:].strip()
 
 def getAtomInfo(atoms):
     atom_data = []
@@ -73,7 +78,7 @@ def onehot(V0, atoms):
         'N': 2
     }
     for i in range(n):
-        ele = re.sub(r'[0-9]+', '', atoms[i]['Ele']).upper()
+        ele = re.sub(r'[^a-zA-Z]', '', atoms[i]['Ele']).upper()
         if ele in tabel:
             V0[i,tabel[ele],0] = 1
 
