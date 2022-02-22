@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from utils import getAtoms, getScore, getAtomInfo, onehot, V_like
+from utils import getAtoms, getAtomInfo, onehot, V_like
 
 
 def testEmbed(V):
@@ -70,8 +70,7 @@ def testNet():
 
 
 if __name__ == '__main__':
-    atoms = getAtoms('S_000028_476.pdb')
-    score = getScore('S_000028_476.pdb')
+    atoms,score = getAtoms('S_000028_476.pdb')
     pred = testNet()
     # atom_data = getAtomInfo(atoms)
     # V = V_like(len(atom_data), dim=3)

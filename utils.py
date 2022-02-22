@@ -3,8 +3,10 @@ from math import sqrt, exp
 from math import pi
 import re
 
+
 def getAtoms(file):
     atoms = []
+    score = 0
     with open(file, 'r') as f:
         for line in f:
             if line[:4] == 'ATOM' or line[:6] == "HETATM":
@@ -15,13 +17,17 @@ def getAtoms(file):
                 atoms.append({'serial': serial.strip(),
                               'Ele': re.sub(r'[^a-zA-Z]', '', Ele).upper().strip(),
                               'coordinate': [float(x.strip()), float(y.strip()), float(z.strip())]})
-        return atoms
+            if line[:5] == 'score':
+                score = line[6:].strip()
+        return atoms, score
+
 
 def getScore(file):
     with open(file, 'r') as f:
         for line in f:
             if line[:5] == 'score':
                 return line[6:].strip()
+
 
 def getAtomInfo(atoms):
     atom_data = []
@@ -80,9 +86,10 @@ def onehot(V0, atoms):
     for i in range(n):
         ele = re.sub(r'[^a-zA-Z]', '', atoms[i]['Ele']).upper()
         if ele in tabel:
-            V0[i,tabel[ele],0] = 1
+            V0[i, tabel[ele], 0] = 1
 
-def getNeighbours(atom, atoms,k=50):
+
+def getNeighbours(atom, atoms, k=50):
     '''
     50 neighbours
     '''
