@@ -1,0 +1,36 @@
+import torch
+from model import Net
+import argparse
+import os
+from utils import getAtoms
+
+
+def get_data(pdb_path, names):
+    res = []
+    for name in names:
+        for file in os.listdir(f'{pdb_path}/{name}'):
+            atoms, score = getAtoms(f'{pdb_path}/{name}/{file}')
+            res.append([atoms, score])
+    return res
+
+
+def main(args):
+    dataSet = get_data(args.dir, args.files)
+    net = Net(device=args.device)
+    net.load_state_dict(torch.load(args.model_path))
+    net.eval()
+    with torch.no_grad():
+        for atoms, score in dataSet:
+            out = net(atoms)
+            print(f'out:{out.item()} score:{score} gap:{(out-score).abs().item()}')
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('files', type=str, nargs='+', default=['157D'])
+    parser.add_argument('--dir', type=str, default='data')
+    parser.add_argument('--device', type=str, default='cpu')
+    parser.add_argument('--model_path', type=str, required=True)
+    args = parser.parse_args()
+
+    main(args)
