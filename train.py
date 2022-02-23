@@ -21,6 +21,7 @@ def main(args):
     loss_fn = torch.nn.HuberLoss()
     if args.checkpoint is not None:
         net.load_state_dict(torch.load(args.checkpoint))
+    net.train()
     for i in range(args.epchos):
         for atoms, score in dataSet:
             out = net(atoms)
