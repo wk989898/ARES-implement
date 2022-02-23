@@ -18,7 +18,7 @@ def getAtoms(file):
                               'Ele': re.sub(r'[^a-zA-Z]', '', Ele).upper().strip(),
                               'coordinate': [float(x.strip()), float(y.strip()), float(z.strip())]})
             if line[:5] == 'score':
-                score = line[6:].strip()
+                score = float(line[6:].strip())
         return atoms, score
 
 
@@ -26,7 +26,7 @@ def getScore(file):
     with open(file, 'r') as f:
         for line in f:
             if line[:5] == 'score':
-                return line[6:].strip()
+                return float(line[6:].strip())
 
 
 def getAtomInfo(atoms):
