@@ -70,7 +70,7 @@ def testNet():
 
 
 if __name__ == '__main__':
-    atoms,rms = getAtoms('S_000028_476.pdb')
+    atoms,rms = getAtoms('S_000041_026.pdb')
     pred = testNet()
     # atom_data = getAtomInfo(atoms)
     # V = V_like(len(atom_data), dim=3)
