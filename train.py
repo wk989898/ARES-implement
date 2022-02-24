@@ -5,9 +5,9 @@ import os
 from utils import getAtoms
 
 
-def get_data(pdb_path, names):
+def get_data(pdb_path):
     res = []
-    for name in names:
+    for name in os.listdir(pdb_path):
         for file in os.listdir(f'{pdb_path}/{name}'):
             atoms, rms = getAtoms(f'{pdb_path}/{name}/{file}')
             res.append([atoms, rms])
@@ -15,7 +15,7 @@ def get_data(pdb_path, names):
 
 
 def main(args):
-    dataSet = get_data(args.dir, args.files)
+    dataSet = get_data(args.dir)
     net = Net(device=args.device)
     optimizer = torch.optim.Adam(net.parameters())
     loss_fn = torch.nn.HuberLoss()
@@ -31,14 +31,13 @@ def main(args):
             loss.backward()
             optimizer.step()
             print(
-                f'epcho:{i} loss:{loss.item()} out:{out.item()} score:{score.item()}')
+                f'epcho:{i} loss:{loss.item()} out:{out.item()} score:{rms.item()}')
     torch.save(net.state_dict(), args.save)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('files', type=str, nargs='+', default=['157D'])
-    parser.add_argument('--dir', type=str, default='data')
+    parser.add_argument('--dir', type=str, default='data/train')
     parser.add_argument('--epchos', type=int, default=100)
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--checkpoint', type=str, default=None)

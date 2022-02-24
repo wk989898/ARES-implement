@@ -5,9 +5,9 @@ import os
 from utils import getAtoms
 
 
-def get_data(pdb_path, names):
+def get_data(pdb_path):
     res = []
-    for name in names:
+    for name in os.listdir(pdb_path):
         for file in os.listdir(f'{pdb_path}/{name}'):
             atoms, rms = getAtoms(f'{pdb_path}/{name}/{file}')
             res.append([atoms, rms])
@@ -15,7 +15,7 @@ def get_data(pdb_path, names):
 
 
 def main(args):
-    dataSet = get_data(args.dir, args.files)
+    dataSet = get_data(args.dir)
     net = Net(device=args.device)
     net.load_state_dict(torch.load(args.model_path))
     net.eval()
@@ -27,8 +27,7 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('files', type=str, nargs='+', default=['157D'])
-    parser.add_argument('--dir', type=str, default='data')
+    parser.add_argument('--dir', type=str, default='data/val')
     parser.add_argument('--device', type=str, default='cpu')
     parser.add_argument('--model_path', type=str, required=True)
     args = parser.parse_args()

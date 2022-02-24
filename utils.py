@@ -17,16 +17,16 @@ def getAtoms(file):
                 atoms.append({'serial': serial.strip(),
                               'Ele': re.sub(r'[^a-zA-Z]', '', Ele).upper().strip(),
                               'coordinate': [float(x.strip()), float(y.strip()), float(z.strip())]})
-            if line[:5] == 'score':
-                score = float(line[6:].strip())
+            if line[:3] == 'rms':
+                score = float(line[4:].strip())
         return atoms, score
 
 
-def getScore(file):
+def getRMS(file):
     with open(file, 'r') as f:
         for line in f:
-            if line[:5] == 'score':
-                return float(line[6:].strip())
+            if line[:3] == 'rms':
+                return float(line[4:].strip())
 
 
 def getAtomInfo(atoms):
