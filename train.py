@@ -9,8 +9,8 @@ def get_data(pdb_path, names):
     res = []
     for name in names:
         for file in os.listdir(f'{pdb_path}/{name}'):
-            atoms, score = getAtoms(f'{pdb_path}/{name}/{file}')
-            res.append([atoms, score])
+            atoms, rms = getAtoms(f'{pdb_path}/{name}/{file}')
+            res.append([atoms, rms])
     return res
 
 
@@ -23,10 +23,10 @@ def main(args):
         net.load_state_dict(torch.load(args.checkpoint))
     net.train()
     for i in range(args.epchos):
-        for atoms, score in dataSet:
+        for atoms, rms in dataSet:
             out = net(atoms)
-            score = torch.tensor([score], device=args.device)
-            loss = loss_fn(out, score)
+            rms = torch.tensor([rms], device=args.device)
+            loss = loss_fn(out, rms)
             net.zero_grad()
             loss.backward()
             optimizer.step()

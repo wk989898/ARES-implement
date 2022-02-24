@@ -9,8 +9,8 @@ def get_data(pdb_path, names):
     res = []
     for name in names:
         for file in os.listdir(f'{pdb_path}/{name}'):
-            atoms, score = getAtoms(f'{pdb_path}/{name}/{file}')
-            res.append([atoms, score])
+            atoms, rms = getAtoms(f'{pdb_path}/{name}/{file}')
+            res.append([atoms, rms])
     return res
 
 
@@ -20,9 +20,9 @@ def main(args):
     net.load_state_dict(torch.load(args.model_path))
     net.eval()
     with torch.no_grad():
-        for atoms, score in dataSet:
+        for atoms, rms in dataSet:
             out = net(atoms)
-            print(f'out:{out.item()} score:{score} gap:{(out-score).abs().item()}')
+            print(f'out:{out.item()} rms:{rms} gap:{(out-rms).abs().item()}')
 
 
 if __name__ == '__main__':

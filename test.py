@@ -70,7 +70,7 @@ def testNet():
 
 
 if __name__ == '__main__':
-    atoms,score = getAtoms('S_000028_476.pdb')
+    atoms,rms = getAtoms('S_000028_476.pdb')
     pred = testNet()
     # atom_data = getAtomInfo(atoms)
     # V = V_like(len(atom_data), dim=3)
@@ -81,5 +81,5 @@ if __name__ == '__main__':
     # V = testNonLinearity()
     # E = testChannel()
     # pred = testDense()
-    print(pred.item(),score)
+    print(pred.item(),rms)
     print('test finish!')
