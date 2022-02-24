@@ -17,7 +17,7 @@ def getAtoms(file):
                 atoms.append({'serial': serial.strip(),
                               'Ele': re.sub(r'[^a-zA-Z]', '', Ele).upper().strip(),
                               'coordinate': [float(x.strip()), float(y.strip()), float(z.strip())]})
-            if line[:3] == 'rms':
+            if line[:4] == 'rms ': # not rms_stem
                 score = float(line[4:].strip())
         return atoms, score
 
@@ -25,7 +25,7 @@ def getAtoms(file):
 def getRMS(file):
     with open(file, 'r') as f:
         for line in f:
-            if line[:3] == 'rms':
+            if line[:4] == 'rms ': # not rms_stem
                 return float(line[4:].strip())
 
 
