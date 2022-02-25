@@ -2,7 +2,7 @@ from collections import defaultdict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from utils import V_like, getAtomInfo, onehot, eta
+from utils import embed, getAtomInfo, onehot, eta
 from torch.nn.init import xavier_uniform_, zeros_
 from cg import clebsch_gordan, O3_clebsch_gordan
 
@@ -39,11 +39,8 @@ class Net(nn.Module):
         E as dimension
         first 3 dimension
         '''
-        # default dim=3
-        V = V_like(len(atoms), dim=self.dim)
-
         # embed
-        onehot(V[0], atoms)
+        V = embed(atoms, dim=self.dim)
 
         # store atom info
         atom_data = getAtomInfo(atoms)
@@ -197,19 +194,9 @@ class SelfInteractionLayer(nn.Module):
         self.bias = nn.Parameter(zeros_(torch.Tensor(output_dim)))
 
     def forward(self, V):
-        '''
-        [3,1]->[24,1]
-        may be need new struct O
-        '''
-        O = V
-        if self.output_dim != V[0].shape[1]:
-            O = V_like(V[0].shape[0], dim=self.output_dim)
-        assert O[0].shape[1] == self.output_dim
-
+        O = defaultdict(list)
         for key in V:
-            # for i, tensor in enumerate(V[key]):
-            # need bias
-            if key == 0:
+            if key == 0: # need bias
                 O[key] = (torch.einsum('nij,ki->njk',
                                        V[key].to(self.bias.device), self.weight)+self.bias).permute(0, 2, 1)
             else:

@@ -1,13 +1,13 @@
 import torch
 import torch.nn.functional as F
-from utils import getAtoms, getAtomInfo, onehot, V_like
+from utils import getAtoms, getAtomInfo, embed
 
 
-def testEmbed(V):
-    onehot(V[0], atoms)
+def testEmbed(dim=3):
+    V=embed(atoms, dim)
+    return V
 
 
-# self-interaction
 def testInteraction():
     from model import SelfInteractionLayer
     layer = SelfInteractionLayer(3, 12)
@@ -16,7 +16,6 @@ def testInteraction():
     return out
 
 
-# Convolution
 def testConvolution():
     from model import Convolution
     layer = Convolution(12, 12, device='cuda')
@@ -25,7 +24,6 @@ def testConvolution():
     return out
 
 
-# Norm
 def testNorm():
     from model import Norm
     layer = Norm()
@@ -33,7 +31,7 @@ def testNorm():
     out = layer(V)
     return out
 
-# NonLinearity
+
 def testNonLinearity():
     from model import NonLinearity
     layer = NonLinearity(12)
@@ -41,7 +39,7 @@ def testNonLinearity():
     out = layer(V)
     return out
 
-# Channel mean
+
 def testChannel():
     from model import Channel_mean
     layer = Channel_mean()
@@ -49,7 +47,7 @@ def testChannel():
     out = layer(V)
     return out
 
-# Dense
+
 def testDense():
     from model import Dense
     dense = torch.nn.Sequential(
@@ -61,7 +59,7 @@ def testDense():
     out = dense(E)
     return out
 
-# All
+
 def testNet():
     from model import Net
     net = Net(device='cuda')
@@ -70,16 +68,15 @@ def testNet():
 
 
 if __name__ == '__main__':
-    atoms,rms = getAtoms('S_000041_026.pdb')
+    atoms, rms = getAtoms('S_000041_026.pdb')
     pred = testNet()
     # atom_data = getAtomInfo(atoms)
-    # V = V_like(len(atom_data), dim=3)
-    # testEmbed(V)
+    # V = testEmbed()
     # V = testInteraction()
     # V = testConvolution()
     # V = testNorm()
     # V = testNonLinearity()
     # E = testChannel()
     # pred = testDense()
-    print(pred.item(),rms)
+    print(pred.item(), rms)
     print('test finish!')
