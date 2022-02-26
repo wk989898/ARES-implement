@@ -17,7 +17,7 @@ def get_data(pdb_path):
 def main(args):
     dataSet = get_data(args.dir)
     net = Net(device=args.device)
-    optimizer = torch.optim.Adam(net.parameters())
+    optimizer = torch.optim.Adam(net.parameters(),lr=args.lr)
     loss_fn = torch.nn.HuberLoss()
     if args.checkpoint is not None:
         net.load_state_dict(torch.load(args.checkpoint))
@@ -38,7 +38,8 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dir', type=str, default='data/train')
-    parser.add_argument('--epchos', type=int, default=100)
+    parser.add_argument('--epchos', type=int, default=10)
+    parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--checkpoint', type=str, default=None)
     parser.add_argument('--save', type=str, default='ARES.pt')
