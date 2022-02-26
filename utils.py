@@ -42,12 +42,12 @@ def getAtomInfo(atoms):
     return atom_data
 
 
-def embed(atoms, dim):
+def embed(atoms, dim, device='cuda'):
     n = len(atoms)
     zero, one, two = torch.zeros((n, dim, 1)), torch.zeros(
         (n, dim, 3)), torch.zeros((n, dim, 5))
     onehot(zero, atoms)
-    return {0: zero, 1: one, 2: two}
+    return {0: zero.to(device), 1: one.to(device), 2: two.to(device)}
 
 
 def distance(x, y):

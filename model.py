@@ -25,6 +25,7 @@ class Net(nn.Module):
             Dense(256, 1),
         )
         self.to(device)
+        self.device=device
 
     def forward(self, atoms):
         '''
@@ -40,7 +41,7 @@ class Net(nn.Module):
         first 3 dimension
         '''
         # embed
-        V = embed(atoms, dim=self.dim)
+        V = embed(atoms, dim=self.dim, device=self.device)
 
         # store atom info
         atom_data = getAtomInfo(atoms)
@@ -198,10 +199,10 @@ class SelfInteractionLayer(nn.Module):
         for key in V:
             if key == 0: # need bias
                 O[key] = (torch.einsum('nij,ki->njk',
-                                       V[key].to(self.bias.device), self.weight)+self.bias).permute(0, 2, 1)
+                                       V[key], self.weight)+self.bias).permute(0, 2, 1)
             else:
                 O[key] = torch.einsum('nij,ki->nkj',
-                                      V[key].to(self.bias.device), self.weight)
+                                      V[key], self.weight)
         del V
         return O
 
