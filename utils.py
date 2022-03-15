@@ -1,6 +1,6 @@
 import torch
-from math import sqrt, exp
-from math import pi
+import torch.nn.functional as F
+from math import sqrt, exp, log, pi
 import re
 
 
@@ -75,7 +75,7 @@ def radial_fn(Rab):
 
 
 def eta(x):
-    return torch.log(0.5*torch.exp(x)+0.5)
+    return F.softplus(x) - log(2.0)
 
 
 def onehot(V0, atoms):

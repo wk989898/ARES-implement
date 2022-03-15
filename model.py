@@ -2,10 +2,9 @@ from collections import defaultdict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from utils import embed, getAtomInfo, onehot, eta
+from utils import embed, getAtomInfo, eta
 from torch.nn.init import xavier_uniform_, zeros_
 from cg import clebsch_gordan, O3_clebsch_gordan
-
 
 class Net(nn.Module):
     '''
@@ -25,7 +24,7 @@ class Net(nn.Module):
             Dense(256, 1),
         )
         self.to(device)
-        self.device=device
+        self.device = device
 
     def forward(self, atoms):
         '''
@@ -59,7 +58,7 @@ class Model(nn.Module):
     def __init__(self, input_dim, dimension, device) -> None:
         super().__init__()
         self.interaction1 = SelfInteractionLayer(input_dim, dimension)
-        self.conv = Convolution(dimension, dimension, device=device)
+        self.conv = Convolution(dimension, device=device)
         self.norm = Norm()
         self.interaction2 = SelfInteractionLayer(dimension, dimension)
         self.nl = NonLinearity(dimension)
@@ -130,7 +129,7 @@ class Y(nn.Module):
 
 
 class Convolution(nn.Module):
-    def __init__(self, input_dim, output_dim, device) -> None:
+    def __init__(self, output_dim, device) -> None:
         super().__init__()
         self.device = device
         self.radial = R(output_dim=output_dim)
@@ -197,7 +196,7 @@ class SelfInteractionLayer(nn.Module):
     def forward(self, V):
         O = defaultdict(list)
         for key in V:
-            if key == 0: # need bias
+            if key == 0:  # need bias
                 O[key] = (torch.einsum('nij,ki->njk',
                                        V[key], self.weight)+self.bias).permute(0, 2, 1)
             else:
@@ -225,7 +224,7 @@ class NonLinearity(nn.Module):
             else:
                 temp = torch.sqrt(torch.einsum(
                     'acm,acm->c', V[key], V[key]))+self.bias[key]
-                V[key] = torch.einsum('acm,c->acm', V[key], temp)
+                V[key] = torch.einsum('acm,c->acm', V[key], eta(temp))
         assert V[0].shape[-1] == 1
         assert V[1].shape[-1] == 3
         assert V[2].shape[-1] == 5
