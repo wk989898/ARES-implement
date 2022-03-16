@@ -3,6 +3,7 @@ from model import Net
 import argparse
 import os
 from utils import getAtoms
+import random
 
 
 def get_data(pdb_path):
@@ -23,6 +24,8 @@ def main(args):
         net.load_state_dict(torch.load(args.checkpoint))
     net.train()
     for i in range(args.epchos):
+        avgloss=0
+        random.shuffle(dataSet)
         for atoms, rms in dataSet:
             out = net(atoms)
             rms = torch.tensor([rms], device=args.device)
@@ -30,9 +33,9 @@ def main(args):
             net.zero_grad()
             loss.backward()
             optimizer.step()
-            print(
-                f'epcho:{i} loss:{loss.item()} out:{out.item()} score:{rms.item()}')
-    torch.save(net.state_dict(), args.save)
+            avgloss+=loss.item()
+        print(f'epcho:{i} loss:{avgloss/len(dataSet)}')
+    torch.save(net.state_dict(), args.save_path)
 
 
 if __name__ == '__main__':
@@ -42,7 +45,8 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--checkpoint', type=str, default=None)
-    parser.add_argument('--save', type=str, default='ARES.pt')
+    parser.add_argument('--save_path', type=str, default='ARES.pt')
     args = parser.parse_args()
 
     main(args)
+    print('done')
