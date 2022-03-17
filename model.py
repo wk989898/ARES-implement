@@ -6,11 +6,8 @@ from utils import embed, getAtomInfo, eta
 from torch.nn.init import xavier_uniform_, zeros_
 from cg import clebsch_gordan, O3_clebsch_gordan
 
-class Net(nn.Module):
-    '''
-    20 layers
-    '''
 
+class Net(nn.Module):
     def __init__(self, device):
         super().__init__()
         self.dim = 3
@@ -90,52 +87,37 @@ class R(nn.Module):
         return r
 
 
-class Y(nn.Module):
+@torch.jit.script
+def Y(dim: int, vecs):
     '''
     angular
     '''
-
-    def __init__(self, dim) -> None:
-        super().__init__()
-
-        def yield_Y_fn(dim):
-            if dim == 0:
-                def fn(xs):
-                    return torch.ones((xs.shape[0], 1)).to(xs.device)
-            elif dim == 1:
-                def fn(xs):
-                    return xs
-            elif dim == 2:
-                def fn(vecs):
-                    eps = 1e-9
-                    r2 = torch.sum(vecs**2, dim=1).clamp_(min=eps)
-                    x, y, z = vecs[..., 0], vecs[..., 1], vecs[..., 2]
-                    return torch.stack([x * y / r2,
-                                        y * z / r2,
-                                        (-x**2 - y**2 + 2. * z**2) /
-                                        (2 * 3**0.5 * r2),
-                                        z * x / r2,
-                                        (x**2 - y**2) / (2. * r2)],
-                                       dim=-1)
-            else:
-                raise ValueError('angular dimension error')
-
-            return fn
-
-        self.Y_fn = torch.jit.script(yield_Y_fn(dim))
-
-    def forward(self, vecs):
-        return self.Y_fn(vecs)
+    if dim == 0:
+        return torch.ones((vecs.shape[0], 1)).to(vecs.device)
+    elif dim == 1:
+        return vecs
+    elif dim == 2:
+        eps = 1e-9
+        r2 = torch.sum(vecs**2, dim=1).clamp_(min=eps)
+        x, y, z = vecs[..., 0], vecs[..., 1], vecs[..., 2]
+        return torch.stack([x * y / r2,
+                            y * z / r2,
+                            (-x**2 - y**2 + 2. * z**2) /
+                            (2 * 3**0.5 * r2),
+                            z * x / r2,
+                            (x**2 - y**2) / (2. * r2)],
+                           dim=-1)
+    else:
+        raise ValueError('angular dimension error')
 
 
 class Convolution(nn.Module):
     def __init__(self, output_dim, device) -> None:
         super().__init__()
         self.device = device
-        self.radial = R(output_dim=output_dim)
-        self.angular = nn.ModuleList(
-            [Y(0), Y(1), Y(2)]
-        )
+        self.radial = R(output_dim)
+        self.angular = Y
+
         # non-zero only for |𝑙𝑖 − 𝑙𝑓 | ≤ 𝑙𝑜 ≤ 𝑙𝑖 + 𝑙𝑓
         self.C = [[0, 0, 0],  [0, 1, 1],  [1, 0, 1], [1, 1, 0], [1, 1, 1], [1, 1, 2], [0, 2, 2], [1, 2, 1], [1, 2, 2],
                   [2, 2, 0], [2, 2, 1], [2, 2, 2], [2, 0, 2], [2, 1, 1], [2, 1, 2]]
@@ -151,7 +133,7 @@ class Convolution(nn.Module):
                 rads, vecs, nei_idxs = torch.tensor(
                     rads, device=self.device), torch.tensor(vecs, device=self.device), torch.tensor(nei_idxs, device=self.device)
                 r = self.radial(rads)
-                y = self.angular[f](vecs)
+                y = self.angular(f, vecs)
                 order = torch.index_select(V[i], dim=0, index=nei_idxs)
                 cif = torch.einsum('lc,lf,lci->lcif',
                                    r, y, order).sum(dim=0)

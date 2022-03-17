@@ -18,7 +18,7 @@ def testInteraction():
 
 def testConvolution():
     from model import Convolution
-    layer = Convolution(12, 12, device='cuda')
+    layer = Convolution(12, device='cuda')
     layer.cuda()
     out = layer(V, atom_data)
     return out
@@ -69,14 +69,14 @@ def testNet():
 
 if __name__ == '__main__':
     atoms, rms = getAtoms('S_000041_026.pdb')
-    pred = testNet()
-    # atom_data = getAtomInfo(atoms)
-    # V = testEmbed()
-    # V = testInteraction()
-    # V = testConvolution()
-    # V = testNorm()
-    # V = testNonLinearity()
-    # E = testChannel()
-    # pred = testDense()
+    # pred = testNet()
+    atom_data = getAtomInfo(atoms)
+    V = testEmbed()
+    V = testInteraction()
+    V = testConvolution()
+    V = testNorm()
+    V = testNonLinearity()
+    E = testChannel()
+    pred = testDense()
     print(pred.item(), rms)
     print('test finish!')
