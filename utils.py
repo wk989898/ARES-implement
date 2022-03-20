@@ -29,16 +29,18 @@ def getRMS(file):
                 return float(line[4:].strip())
 
 
-def getAtomInfo(atoms):
+def getAtomInfo(atoms, device='cuda'):
     atom_data = []
     for atom in atoms:
-        radicals, vecs, nei_idxs = [], [], []
+        rads, vecs, nei_idxs = [], [], []
         for ato in getNeighbours(atom, atoms):
             mod = distance(atom, ato)
-            radicals.append(radial_fn(mod))
+            rads.append(radial_fn(mod))
             vecs.append(unit_vector(atom, ato, mod))
             nei_idxs.append(atoms.index(ato))
-        atom_data.append([radicals, vecs, nei_idxs])
+        rads, vecs, nei_idxs = torch.tensor(rads, device=device), torch.tensor(
+            vecs, device=device), torch.tensor(nei_idxs, device=device)
+        atom_data.append([rads, vecs, nei_idxs])
     return atom_data
 
 

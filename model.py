@@ -11,9 +11,9 @@ class Net(nn.Module):
     def __init__(self, device):
         super().__init__()
         self.dim = 3
-        self.model1 = Model(input_dim=3, dimension=24, device=device)
-        self.model2 = Model(input_dim=24, dimension=12, device=device)
-        self.model3 = Model(input_dim=12, dimension=4, device=device)
+        self.model1 = Model(input_dim=3, dimension=24)
+        self.model2 = Model(input_dim=24, dimension=12)
+        self.model3 = Model(input_dim=12, dimension=4)
         self.channelMean = Channel_mean()
         self.dense = nn.Sequential(
             Dense(4, 4, activation=F.elu),
@@ -40,7 +40,7 @@ class Net(nn.Module):
         V = embed(atoms, dim=self.dim, device=self.device)
 
         # store atom info
-        atom_data = getAtomInfo(atoms)
+        atom_data = getAtomInfo(atoms, device=self.device)
 
         V = self.model1(V, atom_data)
         V = self.model2(V, atom_data)
@@ -52,10 +52,10 @@ class Net(nn.Module):
 
 
 class Model(nn.Module):
-    def __init__(self, input_dim, dimension, device) -> None:
+    def __init__(self, input_dim, dimension) -> None:
         super().__init__()
         self.interaction1 = SelfInteractionLayer(input_dim, dimension)
-        self.conv = Convolution(dimension, device=device)
+        self.conv = Convolution(dimension)
         self.norm = Norm()
         self.interaction2 = SelfInteractionLayer(dimension, dimension)
         self.nl = NonLinearity(dimension)
@@ -97,8 +97,7 @@ def Y(dim: int, vecs):
     elif dim == 1:
         return vecs
     elif dim == 2:
-        eps = 1e-9
-        r2 = torch.sum(vecs**2, dim=1).clamp_(min=eps)
+        r2 = torch.sum(vecs**2, dim=1).clamp_(min=1e-9)
         x, y, z = vecs[..., 0], vecs[..., 1], vecs[..., 2]
         return torch.stack([x * y / r2,
                             y * z / r2,
@@ -112,26 +111,22 @@ def Y(dim: int, vecs):
 
 
 class Convolution(nn.Module):
-    def __init__(self, output_dim, device) -> None:
+    def __init__(self, output_dim) -> None:
         super().__init__()
-        self.device = device
         self.radial = R(output_dim)
         self.angular = Y
 
         # non-zero only for |𝑙𝑖 − 𝑙𝑓 | ≤ 𝑙𝑜 ≤ 𝑙𝑖 + 𝑙𝑓
         self.C = [[0, 0, 0],  [0, 1, 1],  [1, 0, 1], [1, 1, 0], [1, 1, 1], [1, 1, 2], [0, 2, 2], [1, 2, 1], [1, 2, 2],
                   [2, 2, 0], [2, 2, 1], [2, 2, 2], [2, 0, 2], [2, 1, 1], [2, 1, 2]]
-        self.CG = dict()
         for i, f, o in self.C:
-            self.CG[(i, f, o)] = O3_clebsch_gordan(o, i, f, device=device)
+            self.register_buffer(f'{(i, f, o)}',O3_clebsch_gordan(o, i, f))
 
     def forward(self, V, atom_data):
         O = defaultdict(list)
         for i, f, o in self.C:
             acif = []
             for rads, vecs, nei_idxs in atom_data:
-                rads, vecs, nei_idxs = torch.tensor(
-                    rads, device=self.device), torch.tensor(vecs, device=self.device), torch.tensor(nei_idxs, device=self.device)
                 r = self.radial(rads)
                 y = self.angular(f, vecs)
                 order = torch.index_select(V[i], dim=0, index=nei_idxs)
@@ -140,9 +135,9 @@ class Convolution(nn.Module):
                 acif.append(cif)
             assert len(acif) == V[i].shape[0]
             O[o].append(torch.einsum(
-                'oif,acif->aco', self.CG[(i, f, o)], torch.stack(acif)))
+                'oif,acif->aco', self.get_buffer(f'{(i, f, o)}'), torch.stack(acif)))
 
-        for i in range(len(O)):
+        for i in range(3):
             O[i] = torch.stack(O[i]).sum(dim=0)
         assert O[0].shape[-1] == 1
         assert O[1].shape[-1] == 3

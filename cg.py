@@ -1,11 +1,13 @@
 import torch
 from functools import lru_cache
 
+
 @lru_cache
-def O3_clebsch_gordan(l_out, l_in, l_filter,device):
+def O3_clebsch_gordan(l_out, l_in, l_filter):
     from e3nn import o3
-    cg=o3.wigner_3j(l_out, l_in, l_filter).to(device)  # [m_out, m_in, m]
+    cg = o3.wigner_3j(l_out, l_in, l_filter)  # [m_out, m_in, m]
     return cg
+
 
 def irr_repr(order, alpha, beta, gamma, dtype=None, device=None):
     from lie_learn.representations.SO3.wigner_d import wigner_D_matrix
@@ -34,6 +36,7 @@ def get_d_null_space(l1, l2, l3, eps=1e-10):
     import scipy
     import scipy.linalg
     import gc
+
     def _DxDxD(a, b, c):
         D1 = irr_repr(l1, a, b, c)
         D2 = irr_repr(l2, a, b, c)
@@ -49,28 +52,35 @@ def get_d_null_space(l1, l2, l3, eps=1e-10):
         [2.52385107, 0.29089583, 3.90040975],
     ]
 
-    B = torch.zeros((n, n))                                                                             # preallocate memory
-    for abc in random_angles:                                                                           # expand block matrix multiplication with its transpose
+    # preallocate memory
+    B = torch.zeros((n, n))
+    # expand block matrix multiplication with its transpose
+    for abc in random_angles:
         D = _DxDxD(*abc) - torch.eye(n)
-        B += torch.matmul(D.t(), D)                                                                     # B = sum_i { D^T_i @ D_i }
+        # B = sum_i { D^T_i @ D_i }
+        B += torch.matmul(D.t(), D)
         del D
         gc.collect()
 
-    s, v = scipy.linalg.eigh(B.numpy(), eigvals=(0, min(1, n - 1)), overwrite_a=True)                   # ask for one (smallest) eigenvalue/eigenvector pair if there is only one exists, otherwise ask for two
+    # ask for one (smallest) eigenvalue/eigenvector pair if there is only one exists, otherwise ask for two
+    s, v = scipy.linalg.eigh(B.numpy(), eigvals=(
+        0, min(1, n - 1)), overwrite_a=True)
     del B
     gc.collect()
 
     kernel = v.T[s < eps]
     # if not.select first
-    if kernel.shape[0]==0:
-        kernel=v.T[0:1]
+    if kernel.shape[0] == 0:
+        kernel = v.T[0:1]
     return torch.from_numpy(kernel)
 
 # # ################################################################################
 # # # Clebsch Gordan
 # # ################################################################################
+
+
 @lru_cache
-def clebsch_gordan(l1, l2, l3,device):
+def clebsch_gordan(l1, l2, l3):
     """
     https://github.com/mariogeiger/se3cnn/blob/afd027c72e87f2c390e0a2e7c6cfc8deea34b0cf/se3cnn/SO3.py#L235
     Computes the Clebsch–Gordan coefficients
@@ -84,18 +94,21 @@ def clebsch_gordan(l1, l2, l3,device):
     if torch.is_tensor(l3):
         l3 = l3.item()
     if l1 <= l2 <= l3:
-        cg=_clebsch_gordan(l1, l2, l3)
+        cg = _clebsch_gordan(l1, l2, l3)
     if l1 <= l3 <= l2:
-        cg=_clebsch_gordan(l1, l3, l2).transpose(1, 2).contiguous()
+        cg = _clebsch_gordan(l1, l3, l2).transpose(1, 2).contiguous()
     if l2 <= l1 <= l3:
-        cg=_clebsch_gordan(l2, l1, l3).transpose(0, 1).contiguous()
+        cg = _clebsch_gordan(l2, l1, l3).transpose(0, 1).contiguous()
     if l3 <= l2 <= l1:
-        cg=_clebsch_gordan(l3, l2, l1).transpose(0, 2).contiguous()
+        cg = _clebsch_gordan(l3, l2, l1).transpose(0, 2).contiguous()
     if l2 <= l3 <= l1:
-        cg=_clebsch_gordan(l2, l3, l1).transpose(0, 2).transpose(1, 2).contiguous()
+        cg = _clebsch_gordan(l2, l3, l1).transpose(
+            0, 2).transpose(1, 2).contiguous()
     if l3 <= l1 <= l2:
-        cg=_clebsch_gordan(l3, l1, l2).transpose(0, 2).transpose(0, 1).contiguous()
-    return cg.to(device)
+        cg = _clebsch_gordan(l3, l1, l2).transpose(
+            0, 2).transpose(0, 1).contiguous()
+    return cg
+
 
 def _clebsch_gordan(l1, l2, l3):
     """
@@ -109,18 +122,19 @@ def _clebsch_gordan(l1, l2, l3):
     assert abs(l1 - l2) <= l3 <= l1 + l2
 
     null_space = get_d_null_space(l1, l2, l3)
-    assert null_space.size(0) == 1, null_space.size()  # unique subspace solution
+    # unique subspace solution
+    assert null_space.size(0) == 1, null_space.size()
     Q = null_space[0]
     Q = Q.view(2 * l1 + 1, 2 * l2 + 1, 2 * l3 + 1)
 
     if Q.sum() < 0:
-            Q.neg_()
+        Q.neg_()
     return Q  # [m1, m2, m3]
 
 
-if __name__=='__main__':
+if __name__ == '__main__':
     # 0,0,0  0,1,1  1,0,1  1,1,0  1,1,1  1,1,2  0,2,2  1,2,1  1,2,2  2,2,0  2,2,1  2,2,2  2,0,2  2,1,1  2,1,2
     # out in filter
-    C=clebsch_gordan(0,2,2)
-    Cg=O3_clebsch_gordan(0,2,2)
-    print(C,Cg)
+    C = clebsch_gordan(0, 2, 2)
+    Cg = O3_clebsch_gordan(0, 2, 2)
+    print(C, Cg)
