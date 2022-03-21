@@ -23,18 +23,19 @@ def main(args):
     if args.checkpoint is not None:
         net.load_state_dict(torch.load(args.checkpoint))
     net.train()
-    for i in range(args.epchos):
+    for epoch in range(args.epchos):
         avgloss=0
         random.shuffle(dataSet)
-        for atoms, rms in dataSet:
+        for i,(atoms, rms) in enumerate(dataSet):
             out = net(atoms)
             rms = torch.tensor([rms], device=args.device)
             loss = loss_fn(out, rms)
-            net.zero_grad()
             loss.backward()
-            optimizer.step()
             avgloss+=loss.item()
-        print(f'epcho:{i} loss:{avgloss/len(dataSet)}')
+            if (i+1) % args.accumulation_steps == 0 or (i+1)==len(dataSet):
+                optimizer.step()
+                optimizer.zero_grad()
+        print(f'epcho:{epoch} loss:{avgloss/len(dataSet)}')
     torch.save(net.state_dict(), args.save_path)
 
 
@@ -43,6 +44,7 @@ if __name__ == '__main__':
     parser.add_argument('--dir', type=str, default='data/train')
     parser.add_argument('--epchos', type=int, default=10)
     parser.add_argument('--lr', type=float, default=0.01)
+    parser.add_argument('--accumulation_steps', type=int, default=8)
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--checkpoint', type=str, default=None)
     parser.add_argument('--save_path', type=str, default='ARES.pt')

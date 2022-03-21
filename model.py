@@ -167,17 +167,17 @@ class SelfInteractionLayer(nn.Module):
         super().__init__()
         self.output_dim = output_dim
         self.weight = nn.Parameter(xavier_uniform_(
-            torch.Tensor(output_dim, input_dim)))
+            torch.Tensor(input_dim,output_dim)))
         self.bias = nn.Parameter(zeros_(torch.Tensor(output_dim)))
 
     def forward(self, V):
         O = defaultdict(list)
         for key in V:
             if key == 0:  # need bias
-                O[key] = (torch.einsum('nij,ki->njk',
+                O[key] = (torch.einsum('acm,cd->amd',
                                        V[key], self.weight)+self.bias).permute(0, 2, 1)
             else:
-                O[key] = torch.einsum('nij,ki->nkj',
+                O[key] = torch.einsum('acm,cd->adm',
                                       V[key], self.weight)
         del V
         return O
@@ -188,10 +188,10 @@ class NonLinearity(nn.Module):
         super().__init__()
         self.b1 = nn.Parameter(zeros_(torch.Tensor(output_dim)))
         self.b2 = nn.Parameter(zeros_(torch.Tensor(output_dim)))
-        self.bias = {
-            1: self.b1,
-            2: self.b2
-        }
+        self.bias = torch.nn.ParameterDict({
+            '1': self.b1,
+            '2': self.b2
+        })
         self.output_dim = output_dim
 
     def forward(self, V):
@@ -200,8 +200,8 @@ class NonLinearity(nn.Module):
                 V[key] = eta(V[key])
             else:
                 temp = torch.sqrt(torch.einsum(
-                    'acm,acm->c', V[key], V[key]))+self.bias[key]
-                V[key] = torch.einsum('acm,c->acm', V[key], eta(temp))
+                    'acm->ac', torch.square(V[key])))+self.bias[str(key)]
+                V[key] = torch.einsum('acm,ac->acm', V[key], eta(temp))
         assert V[0].shape[-1] == 1
         assert V[1].shape[-1] == 3
         assert V[2].shape[-1] == 5
