@@ -120,7 +120,7 @@ class Convolution(nn.Module):
         self.C = [[0, 0, 0],  [0, 1, 1],  [1, 0, 1], [1, 1, 0], [1, 1, 1], [1, 1, 2], [0, 2, 2], [1, 2, 1], [1, 2, 2],
                   [2, 2, 0], [2, 2, 1], [2, 2, 2], [2, 0, 2], [2, 1, 1], [2, 1, 2]]
         for i, f, o in self.C:
-            self.register_buffer(f'{(i, f, o)}',O3_clebsch_gordan(o, i, f))
+            self.register_buffer(f'{(o, i, f)}',O3_clebsch_gordan(o, i, f))
 
     def forward(self, V, atom_data):
         O = defaultdict(list)
@@ -135,7 +135,7 @@ class Convolution(nn.Module):
                 acif.append(cif)
             assert len(acif) == V[i].shape[0]
             O[o].append(torch.einsum(
-                'oif,acif->aco', self.get_buffer(f'{(i, f, o)}'), torch.stack(acif)))
+                'oif,acif->aco', self.get_buffer(f'{(o, i, f)}'), torch.stack(acif)))
 
         for i in range(3):
             O[i] = torch.stack(O[i]).sum(dim=0)
