@@ -5,33 +5,34 @@ import os
 from utils import getAtoms, getAtomInfo
 
 
-def get_data(pdb_path, device='cpu'):
+def get_data(pdb_path):
     res = []
     if os.path.isfile(pdb_path):
         atoms, rms = getAtoms(pdb_path)
-        atom_data = getAtomInfo(atoms, device=device)
-        res.append([atoms, atom_data, rms])
+        atom_info = getAtomInfo(atoms)
+        res.append([atoms, atom_info, rms])
     else:
         for name in os.listdir(pdb_path):
             if os.path.isfile(f'{pdb_path}/{name}'):
                 atoms, rms = getAtoms(f'{pdb_path}/{name}')
-                atom_data = getAtomInfo(atoms, device=device)
-                res.append([atoms, atom_data, rms])
+                atom_info = getAtomInfo(atoms)
+                res.append([atoms, atom_info, rms])
             else:
                 for file in os.listdir(f'{pdb_path}/{name}'):
                     atoms, rms = getAtoms(f'{pdb_path}/{name}/{file}')
-                    atom_data = getAtomInfo(atoms, device=device)
-                    res.append([atoms, atom_data, rms])
+                    atom_info = getAtomInfo(atoms)
+                    res.append([atoms, atom_info, rms])
     return res
 
 
 def main(args):
-    data_set = get_data(args.pdb_path, device=args.device)
+    data_set = get_data(args.pdb_path)
     net = Net(device=args.device)
     net.load_state_dict(torch.load(args.model_path, map_location=args.device))
     net.eval()
     with torch.no_grad():
-        for atoms, atom_data, rms in data_set:
+        for atoms, atom_info, rms in data_set:
+            atom_data = [torch.tensor(info).to(args.device) for info in atom_info]
             out = net(atoms, atom_data)
             print(f'out:{out.item()} rms:{rms} gap:{(out-rms).abs().item()}')
 

@@ -6,23 +6,23 @@ from utils import getAtoms, getAtomInfo
 import random
 
 
-def get_data(pdb_path, device='cpu'):
+def get_data(pdb_path):
     res = []
     for name in os.listdir(pdb_path):
         if os.path.isfile(f'{pdb_path}/{name}'):
             atoms, rms = getAtoms(f'{pdb_path}/{name}')
-            atom_data = getAtomInfo(atoms, device=device)
-            res.append([atoms, atom_data, rms])
+            atom_info = getAtomInfo(atoms)
+            res.append([atoms, atom_info, rms])
         else:
             for file in os.listdir(f'{pdb_path}/{name}'):
                 atoms, rms = getAtoms(f'{pdb_path}/{name}/{file}')
-                atom_data = getAtomInfo(atoms, device=device)
-                res.append([atoms, atom_data, rms])
+                atom_info = getAtomInfo(atoms)
+                res.append([atoms, atom_info, rms])
     return res
 
 
 def main(args):
-    data_set = get_data(args.dir, device=args.device)
+    data_set = get_data(args.dir)
     net = Net(device=args.device)
     optimizer = torch.optim.Adam(net.parameters(), lr=args.lr)
     loss_fn = torch.nn.HuberLoss()
@@ -32,9 +32,10 @@ def main(args):
     for epoch in range(args.epchos):
         avgloss = 0
         random.shuffle(data_set)
-        for i, (atoms, atom_data, rms) in enumerate(data_set):
-            out = net(atoms, atom_data)
+        for i, (atoms, atom_info, rms) in enumerate(data_set):
+            atom_data = [torch.tensor(info).to(args.device) for info in atom_info]
             rms = torch.tensor([rms], device=args.device)
+            out = net(atoms, atom_data)
             loss = loss_fn(out, rms)
             loss.backward()
             avgloss += loss.item()

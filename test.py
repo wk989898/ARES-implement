@@ -69,7 +69,8 @@ def testNet():
 
 if __name__ == '__main__':
     atoms, rms = getAtoms('S_000041_026.pdb')
-    atom_data = getAtomInfo(atoms, device='cuda')
+    atom_info = getAtomInfo(atoms)
+    atom_data = [torch.tensor(info).to('cuda') for info in atom_info]
     pred = testNet()
     # V = testEmbed()
     # V = testInteraction()
