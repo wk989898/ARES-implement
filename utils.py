@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 from math import sqrt, exp, log, pi
 import re
+from functools import lru_cache
 
 
 def getAtoms(file):
@@ -29,8 +30,8 @@ def getRMS(file):
                 return float(line[4:].strip())
 
 
-def getAtomInfo(atoms, device='cuda'):
-    atoms_rads,atoms_vecs,atoms_nei_idxs=[],[],[]
+def getAtomInfo(atoms, device='cpu'):
+    atoms_rads, atoms_vecs, atoms_nei_idxs = [], [], []
     for atom in atoms:
         rads, vecs, nei_idxs = [], [], []
         for ato in getNeighbours(atom, atoms):
@@ -41,12 +42,12 @@ def getAtomInfo(atoms, device='cuda'):
         atoms_rads.append(rads)
         atoms_vecs.append(vecs)
         atoms_nei_idxs.append(nei_idxs)
-    atoms_rads,atoms_vecs,atoms_nei_idxs = torch.tensor(atoms_rads, device=device), torch.tensor(
-            atoms_vecs, device=device), torch.tensor(atoms_nei_idxs, device=device)
-    return atoms_rads,atoms_vecs,atoms_nei_idxs
+    atoms_rads, atoms_vecs, atoms_nei_idxs = torch.tensor(atoms_rads, device=device), torch.tensor(
+        atoms_vecs, device=device), torch.tensor(atoms_nei_idxs, device=device)
+    return atoms_rads, atoms_vecs, atoms_nei_idxs
 
 
-def embed(atoms, dim, device='cuda'):
+def embed(atoms, dim, device='cpu'):
     n = len(atoms)
     zero, one, two = torch.zeros((n, dim, 1)), torch.zeros(
         (n, dim, 3)), torch.zeros((n, dim, 5))

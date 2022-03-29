@@ -4,7 +4,7 @@ from utils import getAtoms, getAtomInfo, embed
 
 
 def testEmbed(dim=3):
-    V=embed(atoms, dim)
+    V = embed(atoms, dim)
     return V
 
 
@@ -63,20 +63,20 @@ def testDense():
 def testNet():
     from model import Net
     net = Net(device='cuda')
-    pred = net(atoms)
+    pred = net(atoms, atom_data)
     return pred
 
 
 if __name__ == '__main__':
     atoms, rms = getAtoms('S_000041_026.pdb')
-    # pred = testNet()
-    atom_data = getAtomInfo(atoms,device='cuda')
-    V = testEmbed()
-    V = testInteraction()
-    V = testConvolution()
-    V = testNorm()
-    V = testNonLinearity()
-    E = testChannel()
-    pred = testDense()
+    atom_data = getAtomInfo(atoms, device='cuda')
+    pred = testNet()
+    # V = testEmbed()
+    # V = testInteraction()
+    # V = testConvolution()
+    # V = testNorm()
+    # V = testNonLinearity()
+    # E = testChannel()
+    # pred = testDense()
     print(pred.item(), rms)
     print('test finish!')

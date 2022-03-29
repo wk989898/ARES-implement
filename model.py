@@ -2,7 +2,7 @@ from collections import defaultdict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from utils import embed, getAtomInfo, eta
+from utils import embed, eta
 from torch.nn.init import xavier_uniform_, zeros_
 from cg import clebsch_gordan, O3_clebsch_gordan
 
@@ -23,7 +23,7 @@ class Net(nn.Module):
         self.to(device)
         self.device = device
 
-    def forward(self, atoms):
+    def forward(self, atoms, atom_data):
         '''
         For the input to the first network layer,
          we only have scalar features (angular order 𝑙 = 0) and
@@ -38,10 +38,6 @@ class Net(nn.Module):
         '''
         # embed
         V = embed(atoms, dim=self.dim, device=self.device)
-
-        # store atom info
-        atom_data = getAtomInfo(atoms, device=self.device)
-
         V = self.model1(V, atom_data)
         V = self.model2(V, atom_data)
         V = self.model3(V, atom_data)
@@ -93,7 +89,7 @@ def Y(dim: int, vecs):
     angular
     '''
     if dim == 0:
-        return torch.ones((vecs.shape[0],vecs.shape[1], 1)).to(vecs.device)
+        return torch.ones((vecs.shape[0], vecs.shape[1], 1)).to(vecs.device)
     elif dim == 1:
         return vecs
     elif dim == 2:
@@ -120,17 +116,18 @@ class Convolution(nn.Module):
         self.C = [[0, 0, 0],  [0, 1, 1],  [1, 0, 1], [1, 1, 0], [1, 1, 1], [1, 1, 2], [0, 2, 2], [1, 2, 1], [1, 2, 2],
                   [2, 2, 0], [2, 2, 1], [2, 2, 2], [2, 0, 2], [2, 1, 1], [2, 1, 2]]
         for i, f, o in self.C:
-            self.register_buffer(f'{(o, i, f)}',O3_clebsch_gordan(o, i, f))
+            self.register_buffer(f'{(o, i, f)}', O3_clebsch_gordan(o, i, f))
 
     def forward(self, V, atom_data):
         O = defaultdict(list)
         for i, f, o in self.C:
-            atoms_rads,atoms_vecs,atoms_nei_idxs = atom_data
+            atoms_rads, atoms_vecs, atoms_nei_idxs = atom_data
             r = self.radial(atoms_rads)
             y = self.angular(f, atoms_vecs)
-            order = torch.index_select(V[i], dim=0, index=atoms_nei_idxs.reshape(-1)).reshape((*r.shape,-1))
+            order = torch.index_select(
+                V[i], dim=0, index=atoms_nei_idxs.reshape(-1)).reshape((*r.shape, -1))
             acif = torch.einsum('alc,alf,alci->acif',
-                                   r, y, order)
+                                r, y, order)
             O[o].append(torch.einsum(
                 'oif,acif->aco', self.get_buffer(f'{(o, i, f)}'), acif))
         for i in range(3):
@@ -163,7 +160,7 @@ class SelfInteractionLayer(nn.Module):
         super().__init__()
         self.output_dim = output_dim
         self.weight = nn.Parameter(xavier_uniform_(
-            torch.Tensor(input_dim,output_dim)))
+            torch.Tensor(input_dim, output_dim)))
         self.bias = nn.Parameter(zeros_(torch.Tensor(output_dim)))
 
     def forward(self, V):
