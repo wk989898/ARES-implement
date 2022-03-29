@@ -82,7 +82,7 @@ class R(nn.Module):
         )
 
     def forward(self, r):
-        assert r.shape[1] == 12
+        assert r.shape[-1] == 12
         r = self.dense(r)
         return r
 
@@ -93,11 +93,11 @@ def Y(dim: int, vecs):
     angular
     '''
     if dim == 0:
-        return torch.ones((vecs.shape[0], 1)).to(vecs.device)
+        return torch.ones((vecs.shape[0],vecs.shape[1], 1)).to(vecs.device)
     elif dim == 1:
         return vecs
     elif dim == 2:
-        r2 = torch.sum(vecs**2, dim=1).clamp_(min=1e-9)
+        r2 = torch.sum(vecs**2, dim=-1).clamp_(min=1e-9)
         x, y, z = vecs[..., 0], vecs[..., 1], vecs[..., 2]
         return torch.stack([x * y / r2,
                             y * z / r2,
@@ -125,18 +125,14 @@ class Convolution(nn.Module):
     def forward(self, V, atom_data):
         O = defaultdict(list)
         for i, f, o in self.C:
-            acif = []
-            for rads, vecs, nei_idxs in atom_data:
-                r = self.radial(rads)
-                y = self.angular(f, vecs)
-                order = torch.index_select(V[i], dim=0, index=nei_idxs)
-                cif = torch.einsum('lc,lf,lci->lcif',
-                                   r, y, order).sum(dim=0)
-                acif.append(cif)
-            assert len(acif) == V[i].shape[0]
+            atoms_rads,atoms_vecs,atoms_nei_idxs = atom_data
+            r = self.radial(atoms_rads)
+            y = self.angular(f, atoms_vecs)
+            order = torch.index_select(V[i], dim=0, index=atoms_nei_idxs.reshape(-1)).reshape((*r.shape,-1))
+            acif = torch.einsum('alc,alf,alci->acif',
+                                   r, y, order)
             O[o].append(torch.einsum(
-                'oif,acif->aco', self.get_buffer(f'{(o, i, f)}'), torch.stack(acif)))
-
+                'oif,acif->aco', self.get_buffer(f'{(o, i, f)}'), acif))
         for i in range(3):
             O[i] = torch.stack(O[i]).sum(dim=0)
         assert O[0].shape[-1] == 1

@@ -30,7 +30,7 @@ def getRMS(file):
 
 
 def getAtomInfo(atoms, device='cuda'):
-    atom_data = []
+    atoms_rads,atoms_vecs,atoms_nei_idxs=[],[],[]
     for atom in atoms:
         rads, vecs, nei_idxs = [], [], []
         for ato in getNeighbours(atom, atoms):
@@ -38,10 +38,12 @@ def getAtomInfo(atoms, device='cuda'):
             rads.append(radial_fn(mod))
             vecs.append(unit_vector(atom, ato, mod))
             nei_idxs.append(atoms.index(ato))
-        rads, vecs, nei_idxs = torch.tensor(rads, device=device), torch.tensor(
-            vecs, device=device), torch.tensor(nei_idxs, device=device)
-        atom_data.append([rads, vecs, nei_idxs])
-    return atom_data
+        atoms_rads.append(rads)
+        atoms_vecs.append(vecs)
+        atoms_nei_idxs.append(nei_idxs)
+    atoms_rads,atoms_vecs,atoms_nei_idxs = torch.tensor(atoms_rads, device=device), torch.tensor(
+            atoms_vecs, device=device), torch.tensor(atoms_nei_idxs, device=device)
+    return atoms_rads,atoms_vecs,atoms_nei_idxs
 
 
 def embed(atoms, dim, device='cuda'):
