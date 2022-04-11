@@ -10,7 +10,6 @@ from cg import clebsch_gordan, O3_clebsch_gordan
 class Net(nn.Module):
     def __init__(self, device):
         super().__init__()
-        self.dim = 3
         self.model1 = Model(input_dim=3, dimension=24)
         self.model2 = Model(input_dim=24, dimension=12)
         self.model3 = Model(input_dim=12, dimension=4)
@@ -37,7 +36,7 @@ class Net(nn.Module):
         first 3 dimension
         '''
         # embed
-        V = embed(atoms, dim=self.dim, device=self.device)
+        V = embed(atoms, dim=3, device=self.device)
         V = self.model1(V, atom_data)
         V = self.model2(V, atom_data)
         V = self.model3(V, atom_data)
@@ -120,14 +119,14 @@ class Convolution(nn.Module):
 
     def forward(self, V, atom_data):
         O = defaultdict(list)
+        atoms_rads, atoms_vecs, atoms_nei_idxs = atom_data
+        r = self.radial(atoms_rads)
+        order = [torch.index_select(
+            V[i], dim=0, index=atoms_nei_idxs.reshape(-1)).reshape((*r.shape, -1)) for i in V]
         for i, f, o in self.C:
-            atoms_rads, atoms_vecs, atoms_nei_idxs = atom_data
-            r = self.radial(atoms_rads)
             y = self.angular(f, atoms_vecs)
-            order = torch.index_select(
-                V[i], dim=0, index=atoms_nei_idxs.reshape(-1)).reshape((*r.shape, -1))
             acif = torch.einsum('alc,alf,alci->acif',
-                                r, y, order)
+                                r, y, order[i])
             O[o].append(torch.einsum(
                 'oif,acif->aco', self.get_buffer(f'{(o, i, f)}'), acif))
         for i in range(3):
