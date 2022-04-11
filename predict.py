@@ -2,37 +2,27 @@ import torch
 from model import Net
 import argparse
 import os
-from utils import getAtoms, getAtomInfo
+from utils import help
 
 
-def get_data(pdb_path):
+def get_data_path(pdb_path):
     res = []
-    if os.path.isfile(pdb_path):
-        atoms, rms = getAtoms(pdb_path)
-        atom_info = getAtomInfo(atoms)
-        res.append([atoms, atom_info, rms])
-    else:
-        for name in os.listdir(pdb_path):
-            if os.path.isfile(f'{pdb_path}/{name}'):
-                atoms, rms = getAtoms(f'{pdb_path}/{name}')
-                atom_info = getAtomInfo(atoms)
-                res.append([atoms, atom_info, rms])
-            else:
-                for file in os.listdir(f'{pdb_path}/{name}'):
-                    atoms, rms = getAtoms(f'{pdb_path}/{name}/{file}')
-                    atom_info = getAtomInfo(atoms)
-                    res.append([atoms, atom_info, rms])
+    for root, dirs, files in os.walk(pdb_path):
+        for name in files:
+            res.append(os.path.join(root, name))
     return res
 
 
 def main(args):
-    data_set = get_data(args.pdb_path)
+    data_set_path = get_data_path(args.pdb_path)
     net = Net(device=args.device)
     net.load_state_dict(torch.load(args.model_path, map_location=args.device))
     net.eval()
     with torch.no_grad():
-        for atoms, atom_info, rms in data_set:
-            atom_data = [torch.tensor(info).to(args.device) for info in atom_info]
+        for pdb_path in data_set_path:
+            atoms, atom_info, rms = help(pdb_path)
+            atom_data = [torch.tensor(info).to(args.device)
+                         for info in atom_info]
             out = net(atoms, atom_data)
             print(f'out:{out.item()} rms:{rms} gap:{(out-rms).abs().item()}')
 

@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from utils import getAtoms, getAtomInfo, embed
+from utils import help, embed
 
 
 def testEmbed(dim=3):
@@ -68,8 +68,7 @@ def testNet():
 
 
 if __name__ == '__main__':
-    atoms, rms = getAtoms('S_000041_026.pdb')
-    atom_info = getAtomInfo(atoms)
+    atoms, atom_info, rms = help('S_000041_026.pdb')
     atom_data = [torch.tensor(info).to('cuda') for info in atom_info]
     pred = testNet()
     # V = testEmbed()

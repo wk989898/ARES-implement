@@ -44,6 +44,12 @@ def getAtomInfo(atoms):
     return atoms_rads, atoms_vecs, atoms_nei_idxs
 
 
+def help(name):
+    atoms, rms = getAtoms(name)
+    atom_info = getAtomInfo(atoms)
+    return atoms, atom_info, rms
+
+
 def embed(atoms, dim, device='cpu'):
     n = len(atoms)
     zero, one, two = torch.zeros((n, dim, 1)), torch.zeros(
