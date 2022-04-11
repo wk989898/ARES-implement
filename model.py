@@ -8,7 +8,7 @@ from cg import clebsch_gordan, O3_clebsch_gordan
 
 
 class Net(nn.Module):
-    def __init__(self, device):
+    def __init__(self, device='cpu'):
         super().__init__()
         self.model1 = Model(input_dim=3, dimension=24)
         self.model2 = Model(input_dim=24, dimension=12)
