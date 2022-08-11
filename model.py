@@ -208,8 +208,7 @@ class Channel_mean(nn.Module):
         '''
         only V[0]
         '''
-        return torch.sum(V[0], dim=0).squeeze()
-
+        return torch.mean(V[0], dim=0).transpose(-1,-2)
 
 def init_wb(m):
     if isinstance(m, nn.Linear):
