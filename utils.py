@@ -29,7 +29,7 @@ def getRMS(file):
                 return float(line[4:].strip())
 
 
-def getAtomInfo(atoms):
+def getAtomInfo(atoms,device):
     atoms_rads, atoms_vecs, atoms_nei_idxs = [], [], []
     for atom in atoms:
         rads, vecs, nei_idxs = [], [], []
@@ -39,18 +39,21 @@ def getAtomInfo(atoms):
             vecs.append(unit_vector(atom, ato, mod))
             nei_idxs.append(atoms.index(ato))
         atoms_rads.append(rads)
-        atoms_vecs.append(vecs)
+        atoms_vecs.append(torch.stack(vecs))
         atoms_nei_idxs.append(nei_idxs)
+    atoms_rads=torch.tensor(atoms_rads,device=device)
+    atoms_vecs=torch.stack(atoms_vecs).to(device).float()
+    atoms_nei_idxs=torch.tensor(atoms_nei_idxs,device=device)
     return atoms_rads, atoms_vecs, atoms_nei_idxs
 
 
-def help(name):
-    atoms, rms = getAtoms(name)
-    atom_info = getAtomInfo(atoms)
-    return atoms, atom_info, rms
+def help(atoms,dim=3,device='cpu'):
+    atoms_info = getAtomInfo(atoms,device=device)
+    V = embed(atoms, dim, device=device)
+    return V, atoms_info
 
 
-def embed(atoms, dim, device='cpu'):
+def embed(atoms, dim=3, device='cpu'):
     n = len(atoms)
     zero, one, two = torch.zeros((n, dim, 1)), torch.zeros(
         (n, dim, 3)), torch.zeros((n, dim, 5))
@@ -59,18 +62,11 @@ def embed(atoms, dim, device='cpu'):
 
 
 def distance(x, y):
-    eps = 1e-9
-    ans = 0
-    for i in range(3):
-        ans += (x['coordinate'][i]-y['coordinate'][i])**2
-    return max(sqrt(ans), eps)
+    return torch.sqrt(((torch.tensor(x['coordinate'])-torch.tensor(y['coordinate']))**2).sum()).clamp_(min=1e-9)
 
 
-def unit_vector(x, y, mod=None):
-    if not mod:
-        mod = distance(x, y)
-    vec = [(x['coordinate'][i]-y['coordinate'][i])/mod for i in range(3)]
-    return vec
+def unit_vector(x, y, mod):
+    return (torch.tensor(x['coordinate'])-torch.tensor(y['coordinate']))/mod
 
 
 def radial_fn(Rab):
@@ -94,7 +90,7 @@ def onehot(V0, atoms):
         'N': 2
     }
     for i in range(n):
-        ele = re.sub(r'[^a-zA-Z]', '', atoms[i]['Ele']).upper()
+        ele = re.sub(r'[^a-zA-Z]', '', atoms[i]['Ele'][0]).upper()
         if ele in tabel:
             V0[i, tabel[ele], 0] = 1
 
@@ -103,16 +99,11 @@ def getNeighbours(atom, atoms, k=50):
     '''
     50 neighbours
     '''
-    # arr_index=[i for i in range(len(atoms))]
-    # arr_index.sort(key=lambda x:compare(atom.coordinate,atoms[x].coordinate))
-    # return arr_index
     temp = atoms[:]
     temp.sort(key=lambda x: compare(atom['coordinate'], x['coordinate']))
+    temp.pop(0) # remove self
     return temp[:k]
 
 
 def compare(x, y):
-    ans = 0
-    for i in range(3):
-        ans += (y[i]-x[i])**2
-    return ans
+    return ((torch.tensor(x)-torch.tensor(y))**2).sum()

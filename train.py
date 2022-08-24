@@ -1,22 +1,14 @@
-from unittest import mock
 import torch
-from model import Net
-import os
-import random
 import argparse
 from utils import help
-
-
-def get_data_path(pdb_path):
-    res = []
-    for root, dirs, files in os.walk(pdb_path):
-        for name in files:
-            res.append(os.path.join(root, name))
-    return res
+from model import Net
+from torch.utils.data import DataLoader
+from data import ARESdataset
 
 
 def main(args):
-    data_set_path = get_data_path(args.dir)
+    dataset=ARESdataset(args.dir)
+    dataloader=DataLoader(dataset,batch_size=1,shuffle=True)
     net = Net(device=args.device)
     optimizer = torch.optim.Adam(net.parameters(), lr=args.lr)
     loss_fn = torch.nn.HuberLoss()
@@ -25,20 +17,18 @@ def main(args):
     net.train()
     for epoch in range(args.epochs):
         avgloss = 0
-        random.shuffle(data_set_path)
-        for i, name in enumerate(data_set_path):
-            atoms, atom_info, rms = help(name)
-            atom_data = [torch.tensor(info,device=args.device)
-                         for info in atom_info]
-            rms = torch.tensor(rms, device=args.device)
-            out = net(atoms, atom_data)
-            loss = loss_fn(out.squeeze(), rms)
+        for i,(atoms,rms) in enumerate(dataloader):
+            V,atoms_info=help(atoms,device=args.device)
+            rms = rms.to(args.device).float()
+            out = net(V, atoms_info)
+            loss = loss_fn(out.squeeze(-1), rms)
             loss.backward()
             avgloss += loss.item()
-            if (i+1) % args.accumulation_steps == 0 or (i+1) == len(data_set_path):
+            if (i+1) % args.accumulation_steps == 0 or (i+1) == len(dataloader):
                 optimizer.step()
                 optimizer.zero_grad()
-        print(f'epcho:{epoch} loss:{avgloss/len(data_set_path)}')
+        print(f'epcho:{epoch} loss:{avgloss/len(dataset)}')
+
     if args.save_path is not None:
         net.eval()
         torch.save(net.state_dict(), args.save_path)

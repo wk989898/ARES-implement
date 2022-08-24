@@ -22,7 +22,7 @@ class Net(nn.Module):
         self.to(device)
         self.device = device
 
-    def forward(self, atoms, atom_data):
+    def forward(self, V, atoms_info):
         '''
         For the input to the first network layer,
          we only have scalar features (angular order 𝑙 = 0) and
@@ -35,11 +35,9 @@ class Net(nn.Module):
         E as dimension
         first 3 dimension
         '''
-        # embed
-        V = embed(atoms, dim=3, device=self.device)
-        V = self.model1(V, atom_data)
-        V = self.model2(V, atom_data)
-        V = self.model3(V, atom_data)
+        V = self.model1(V, atoms_info)
+        V = self.model2(V, atoms_info)
+        V = self.model3(V, atoms_info)
         E = self.channelMean(V)
         E = self.dense(E)
 
@@ -55,9 +53,9 @@ class Model(nn.Module):
         self.interaction2 = SelfInteractionLayer(dimension, dimension)
         self.nl = NonLinearity(dimension)
 
-    def forward(self, V, atom_data):
+    def forward(self, V, atoms_info):
         V = self.interaction1(V)
-        V = self.conv(V, atom_data)
+        V = self.conv(V, atoms_info)
         V = self.norm(V)
         V = self.interaction2(V)
         V = self.nl(V)
@@ -117,9 +115,9 @@ class Convolution(nn.Module):
         for i, f, o in self.C:
             self.register_buffer(f'{(o, i, f)}', O3_clebsch_gordan(o, i, f))
 
-    def forward(self, V, atom_data):
+    def forward(self, V, atoms_info):
         O = defaultdict(list)
-        atoms_rads, atoms_vecs, atoms_nei_idxs = atom_data
+        atoms_rads, atoms_vecs, atoms_nei_idxs = atoms_info
         r = self.radial(atoms_rads)
         order = [torch.index_select(
             V[i], dim=0, index=atoms_nei_idxs.reshape(-1)).reshape((*r.shape, -1)) for i in V]
