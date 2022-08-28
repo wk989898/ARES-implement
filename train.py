@@ -18,7 +18,6 @@ def main(args):
     for epoch in range(args.epochs):
         avgloss = 0
         for i,(atoms,rms) in enumerate(dataloader):
-            if i>10:exit()
             V,atoms_info=help(atoms,device=args.device)
             rms = rms.to(args.device).float()
             out = net(V, atoms_info)
