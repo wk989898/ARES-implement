@@ -2,7 +2,7 @@ from collections import defaultdict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from utils import embed, eta
+from utils import eta
 from torch.nn.init import xavier_uniform_, zeros_
 from cg import clebsch_gordan, O3_clebsch_gordan
 

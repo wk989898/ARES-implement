@@ -1,10 +1,9 @@
 import torch
 from functools import lru_cache
-
+from e3nn import o3
 
 @lru_cache
 def O3_clebsch_gordan(l_out, l_in, l_filter):
-    from e3nn import o3
     cg = o3.wigner_3j(l_out, l_in, l_filter)  # [m_out, m_in, m]
     return cg
 

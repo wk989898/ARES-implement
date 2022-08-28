@@ -18,6 +18,7 @@ def main(args):
     for epoch in range(args.epochs):
         avgloss = 0
         for i,(atoms,rms) in enumerate(dataloader):
+            if i>10:exit()
             V,atoms_info=help(atoms,device=args.device)
             rms = rms.to(args.device).float()
             out = net(V, atoms_info)
@@ -28,7 +29,6 @@ def main(args):
                 optimizer.step()
                 optimizer.zero_grad()
         print(f'epcho:{epoch} loss:{avgloss/len(dataset)}')
-
     if args.save_path is not None:
         net.eval()
         torch.save(net.state_dict(), args.save_path)

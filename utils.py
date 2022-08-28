@@ -1,6 +1,5 @@
 import torch
 import torch.nn.functional as F
-from math import sqrt, exp, log, pi
 import re
 
 
@@ -31,17 +30,20 @@ def getRMS(file):
 
 def getAtomInfo(atoms,device):
     atoms_rads, atoms_vecs, atoms_nei_idxs = [], [], []
-    for atom in atoms:
+    atoms_coord=torch.stack([torch.tensor(atom['coordinate']) for atom in  atoms])
+    atoms_distance=distance(atoms_coord[None,:],atoms_coord[:,None])
+    values,indices=atoms_distance.topk(51,largest=False)
+    for i in range(len(atoms)):
         rads, vecs, nei_idxs = [], [], []
-        for ato in getNeighbours(atom, atoms):
-            mod = distance(atom, ato)
+        for j in range(1,51): # exclude self
+            mod=values[i][j]
             rads.append(radial_fn(mod))
-            vecs.append(unit_vector(atom, ato, mod))
-            nei_idxs.append(atoms.index(ato))
+            vecs.append(unit_vector(atoms_coord[i], atoms_coord[indices[i][j]], mod))
+            nei_idxs.append(indices[i][j])
         atoms_rads.append(rads)
         atoms_vecs.append(torch.stack(vecs))
         atoms_nei_idxs.append(nei_idxs)
-    atoms_rads=torch.tensor(atoms_rads,device=device)
+    atoms_rads=torch.tensor(atoms_rads,device=device).float()
     atoms_vecs=torch.stack(atoms_vecs).to(device).float()
     atoms_nei_idxs=torch.tensor(atoms_nei_idxs,device=device)
     return atoms_rads, atoms_vecs, atoms_nei_idxs
@@ -62,24 +64,22 @@ def embed(atoms, dim=3, device='cpu'):
 
 
 def distance(x, y):
-    return torch.sqrt(((torch.tensor(x['coordinate'])-torch.tensor(y['coordinate']))**2).sum()).clamp_(min=1e-9)
+    return torch.sqrt(((x-y)**2).sum(-1))
 
 
 def unit_vector(x, y, mod):
-    return (torch.tensor(x['coordinate'])-torch.tensor(y['coordinate']))/mod
+    return (x-y)/mod.clamp_min(1e-9)
 
-
+@torch.jit.script
 def radial_fn(Rab):
-    G = []
     sigma, n, miu = 1, 11, 12/11
-    for i in range(n+1):
-        temp = 1/(sigma*sqrt(2*pi))*exp(-(Rab-miu*i)**2/(2*sigma**2))
-        G.append(temp)
+    p,q=sigma*(2*torch.pi)**0.5,2*sigma**2
+    G=[1/p*torch.exp(-(Rab-miu*i).square()/q) for i in range(n+1)]
     return G
 
 
 def eta(x):
-    return F.softplus(x) - log(2.0)
+    return F.softplus(x) - torch.tensor(2.0).log()
 
 
 def onehot(V0, atoms):
@@ -93,17 +93,3 @@ def onehot(V0, atoms):
         ele = re.sub(r'[^a-zA-Z]', '', atoms[i]['Ele'][0]).upper()
         if ele in tabel:
             V0[i, tabel[ele], 0] = 1
-
-
-def getNeighbours(atom, atoms, k=50):
-    '''
-    50 neighbours
-    '''
-    temp = atoms[:]
-    temp.sort(key=lambda x: compare(atom['coordinate'], x['coordinate']))
-    temp.pop(0) # remove self
-    return temp[:k]
-
-
-def compare(x, y):
-    return ((torch.tensor(x)-torch.tensor(y))**2).sum()
