@@ -1,7 +1,8 @@
 import torch
 import torch.nn.functional as F
 import re
-
+from torch import Tensor
+from typing import List
 
 def getAtoms(file):
     atoms = []
@@ -28,32 +29,21 @@ def getRMS(file):
                 return float(line[4:].strip())
 
 
-def getAtomInfo(atoms,device):
-    atoms_rads, atoms_vecs, atoms_nei_idxs = [], [], []
-    atoms_coord=torch.stack([torch.tensor(atom['coordinate']) for atom in  atoms])
-    atoms_distance=distance(atoms_coord[None,:],atoms_coord[:,None])
-    values,indices=atoms_distance.topk(51,largest=False)
-    for i in range(len(atoms)):
-        rads, vecs, nei_idxs = [], [], []
-        for j in range(1,51): # exclude self
-            mod=values[i][j]
-            rads.append(radial_fn(mod))
-            vecs.append(unit_vector(atoms_coord[i], atoms_coord[indices[i][j]], mod))
-            nei_idxs.append(indices[i][j])
-        atoms_rads.append(rads)
-        atoms_vecs.append(torch.stack(vecs))
-        atoms_nei_idxs.append(nei_idxs)
-    atoms_rads=torch.tensor(atoms_rads,device=device).float()
-    atoms_vecs=torch.stack(atoms_vecs).to(device).float()
-    atoms_nei_idxs=torch.tensor(atoms_nei_idxs,device=device)
-    return atoms_rads, atoms_vecs, atoms_nei_idxs
-
-
 def help(atoms,dim=3,device='cpu'):
     atoms_info = getAtomInfo(atoms,device=device)
     V = embed(atoms, dim, device=device)
     return V, atoms_info
 
+def getAtomInfo(atoms,device,nei_num=50):
+    atoms_coord=torch.stack([torch.tensor(atom['coordinate']) for atom in  atoms])
+    atoms_distance=distance(atoms_coord[None,:],atoms_coord[:,None])
+    values,indices=atoms_distance.topk(nei_num+1,largest=False)
+
+    atoms_rads, atoms_vecs, atoms_nei_idxs=getInfo(atoms_coord,indices,values,nei_num)
+    atoms_rads=torch.tensor(atoms_rads,device=device).float()
+    atoms_vecs=torch.stack(atoms_vecs).to(device).float()
+    atoms_nei_idxs=torch.tensor(atoms_nei_idxs,device=device)
+    return atoms_rads, atoms_vecs, atoms_nei_idxs
 
 def embed(atoms, dim=3, device='cpu'):
     n = len(atoms)
@@ -61,26 +51,6 @@ def embed(atoms, dim=3, device='cpu'):
         (n, dim, 3)), torch.zeros((n, dim, 5))
     onehot(zero, atoms)
     return {0: zero.to(device), 1: one.to(device), 2: two.to(device)}
-
-
-def distance(x, y):
-    return torch.sqrt(((x-y)**2).sum(-1))
-
-
-def unit_vector(x, y, mod):
-    return (x-y)/mod.clamp_min(1e-9)
-
-@torch.jit.script
-def radial_fn(Rab):
-    sigma, n, miu = 1, 11, 12/11
-    p,q=sigma*(2*torch.pi)**0.5,2*sigma**2
-    G=[1/p*torch.exp(-(Rab-miu*i).square()/q) for i in range(n+1)]
-    return G
-
-
-def eta(x):
-    return F.softplus(x) - torch.tensor(2.0).log()
-
 
 def onehot(V0, atoms):
     n = len(atoms)
@@ -93,3 +63,40 @@ def onehot(V0, atoms):
         ele = re.sub(r'[^a-zA-Z]', '', atoms[i]['Ele'][0]).upper()
         if ele in tabel:
             V0[i, tabel[ele], 0] = 1
+
+@torch.jit.script
+def distance(x, y):
+    return torch.sqrt(((x-y)**2).sum(-1))
+
+@torch.jit.script
+def unit_vector(x, y, mod):
+    return (x-y)/mod.clamp_min(1e-9)
+
+@torch.jit.script
+def radial_fn(Rab):
+    sigma, n, miu = 1, 11, 12/11
+    p,q=sigma*(2*torch.pi)**0.5,2*sigma**2
+    G=[1/p*torch.exp(-(Rab-miu*i).square()/q) for i in range(n+1)]
+    return G
+
+@torch.jit.script
+def eta(x):
+    return F.softplus(x) - torch.tensor(2.0).log()
+
+@torch.jit.script
+def getInfo(atoms_coord:Tensor,indices:Tensor,values:Tensor,nei_num:int=50):
+    atoms_rads = torch.jit.annotate(List[List[List[Tensor]]], [])
+    atoms_vecs = torch.jit.annotate(List[Tensor], [])
+    atoms_nei_idxs = torch.jit.annotate(List[List[Tensor]], [])
+    n=atoms_coord.size(0)
+    for i in range(n):
+        rads, vecs, nei_idxs = torch.jit.annotate(List[List[Tensor]], []), torch.jit.annotate(List[Tensor], []), torch.jit.annotate(List[Tensor], [])
+        for j in range(1,nei_num+1): # exclude self
+            mod=values[i][j]
+            rads.append(radial_fn(mod))
+            vecs.append(unit_vector(atoms_coord[i], atoms_coord[indices[i][j]], mod))
+            nei_idxs.append(indices[i][j])
+        atoms_rads.append(rads)
+        atoms_vecs.append(torch.stack(vecs))
+        atoms_nei_idxs.append(nei_idxs)
+    return atoms_rads, atoms_vecs, atoms_nei_idxs
