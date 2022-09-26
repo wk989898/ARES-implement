@@ -29,7 +29,6 @@ def main(args):
                 optimizer.zero_grad()
         print(f'epcho:{epoch} loss:{avgloss/len(dataset)}')
     if args.save_path is not None:
-        net.eval()
         torch.save(net.state_dict(), args.save_path)
 
 

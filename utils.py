@@ -22,13 +22,6 @@ def getAtoms(file):
         return atoms, score
 
 
-def getRMS(file):
-    with open(file, 'r') as f:
-        for line in f:
-            if line[:4] == 'rms ':  # not rms_stem
-                return float(line[4:].strip())
-
-
 def help(atoms,dim=3,device='cpu'):
     atoms_info = getAtomInfo(atoms,device=device)
     V = embed(atoms, dim, device=device)
