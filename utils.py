@@ -1,8 +1,6 @@
+import re
 import torch
 import torch.nn.functional as F
-import re
-from torch import Tensor
-from typing import List
 
 def getAtoms(file):
     atoms = []
@@ -30,7 +28,7 @@ def to_device(x,device):
     elif isinstance(x, (list,tuple)):
         x = [to_device(xx,device) for xx in x]
     return x
-    
+
 def help(atoms,dim=3,device='cpu'):
     atoms_info = getAtomInfo(atoms,device=device)
     V = embed(atoms, dim, device=device)
@@ -83,7 +81,7 @@ def radial_fn(Rab):
 def eta(x):
     return F.softplus(x) - torch.tensor(2.0).log()
 
-def getInfo(atoms_coord:Tensor,indices:Tensor,values:Tensor,nei_num:int=50):
+def getInfo(atoms_coord,indices,values,nei_num=50):
     atoms_rads = []
     atoms_vecs = []
     atoms_nei_idxs = []

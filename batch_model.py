@@ -3,8 +3,8 @@ import torch.nn as nn
 from utils import embed, eta
 import torch.nn.functional as F
 from collections import defaultdict
-from torch.nn.init import xavier_uniform_, zeros_
 from cg import clebsch_gordan, O3_clebsch_gordan
+from torch.nn.init import xavier_uniform_, zeros_
 from einops import repeat, rearrange
 
 
