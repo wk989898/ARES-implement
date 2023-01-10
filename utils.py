@@ -21,7 +21,16 @@ def getAtoms(file):
                 score = float(line[4:].strip())
         return atoms, score
 
-
+def to_device(x,device):
+    if isinstance(x, torch.Tensor):
+        x = x.to(device)
+    elif isinstance(x, dict):
+        for k in x:
+            x[k] = to_device(x[k],device) 
+    elif isinstance(x, (list,tuple)):
+        x = [to_device(xx,device) for xx in x]
+    return x
+    
 def help(atoms,dim=3,device='cpu'):
     atoms_info = getAtomInfo(atoms,device=device)
     V = embed(atoms, dim, device=device)

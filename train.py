@@ -2,17 +2,9 @@ import torch
 import argparse
 # from model import Net
 from batch_model import Net
+from utils import to_device
 from data import ARESdataset, collate_fn
 
-def to_device(x,device):
-    if isinstance(x, torch.Tensor):
-        x = x.to(device)
-    elif isinstance(x, dict):
-        for k in x:
-            x[k] = to_device(x[k],device) 
-    elif isinstance(x, (list,tuple)):
-        x = [to_device(xx,device) for xx in x]
-    return x
 
 def main(args):
     print(args)

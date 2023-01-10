@@ -1,9 +1,11 @@
 import torch
 import argparse
 from model import Net
-from utils import help
-from torch.utils.data import DataLoader
+# from batch_model import Net
+from utils import to_device
 from data import ARESdataset
+from torch.utils.data import DataLoader
+
 
 
 def main(args):
@@ -13,10 +15,9 @@ def main(args):
     net.load_state_dict(torch.load(args.model_path, map_location=args.device))
     net.eval()
     with torch.no_grad():
-        for atoms,rms in dataloader:
-            V,atoms_info = help(atoms,device=args.device)
-            rms = rms.to(args.device)
-            out = net(V, atoms_info)
+        for batch in dataloader:
+            V,atoms_info,rms,atoms_lens = (to_device(x,args.device) for x in batch)
+            out = net(V, atoms_info, atoms_lens)
             print(f'out:{out.item()} rms:{rms.item()} gap:{(out-rms).abs().item()}')
 
 
