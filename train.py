@@ -28,7 +28,7 @@ def main(args):
             loss = loss_fn(out, rms)
             loss.backward()
             train_loss += loss.item()
-            if (i+1) % args.accumulation_steps == 0 or (i+1) == len(dataloader):
+            if (i+1) % args.accumulation_steps == 0 or (i+1) == len(train_dataloader):
                 optimizer.step()
                 optimizer.zero_grad()
         print(f'epcho:{epoch} train loss:{train_loss/len(train_dataset)}')
@@ -36,7 +36,7 @@ def main(args):
         val_loss = 0
         net.eval()
         with torch.no_grad():
-            for i,batch in enumerate(train_dataloader):
+            for i,batch in enumerate(valid_dataloader):
                 V,atoms_info,rms,atoms_lens = (to_device(x,args.device) for x in batch)
                 out = net(V, atoms_info, atoms_lens)
                 loss = loss_fn(out, rms)
