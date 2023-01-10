@@ -1,14 +1,24 @@
 import torch
 import argparse
-from utils import help
-from model import Net
-from torch.utils.data import DataLoader
-from data import ARESdataset
+# from model import Net
+from batch_model import Net
+from data import ARESdataset, collate_fn
 
+def to_device(x,device):
+    if isinstance(x, torch.Tensor):
+        x = x.to(device)
+    elif isinstance(x, dict):
+        for k in x:
+            x[k] = to_device(x[k],device) 
+    elif isinstance(x, (list,tuple)):
+        x = [to_device(xx,device) for xx in x]
+    return x
 
 def main(args):
+    print(args)
     dataset=ARESdataset(args.dir)
-    dataloader=DataLoader(dataset,batch_size=1,shuffle=True)
+    # dataloader=torch.utils.data.DataLoader(dataset,batch_size=1,shuffle=True)
+    dataloader=torch.utils.data.DataLoader(dataset,batch_size=args.batch_size,shuffle=True,collate_fn=collate_fn)
     net = Net(device=args.device)
     optimizer = torch.optim.Adam(net.parameters(), lr=args.lr)
     loss_fn = torch.nn.HuberLoss()
@@ -17,11 +27,10 @@ def main(args):
     net.train()
     for epoch in range(args.epochs):
         avgloss = 0
-        for i,(atoms,rms) in enumerate(dataloader):
-            V,atoms_info=help(atoms,device=args.device)
-            rms = rms.to(args.device).float()
-            out = net(V, atoms_info)
-            loss = loss_fn(out.squeeze(-1), rms)
+        for i,batch in enumerate(dataloader):
+            V,atoms_info,rms,atoms_lens = (to_device(x,args.device) for x in batch)
+            out = net(V, atoms_info, atoms_lens)
+            loss = loss_fn(out, rms)
             loss.backward()
             avgloss += loss.item()
             if (i+1) % args.accumulation_steps == 0 or (i+1) == len(dataloader):
@@ -37,6 +46,7 @@ if __name__ == '__main__':
     parser.add_argument('--dir', type=str, default='data/train')
     parser.add_argument('--epochs', type=int, default=10)
     parser.add_argument('--lr', type=float, default=0.01)
+    parser.add_argument('--batch_size', type=int, default=4)
     parser.add_argument('--accumulation_steps', type=int, default=8)
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--checkpoint', type=str, default=None)

@@ -28,14 +28,14 @@ def help(atoms,dim=3,device='cpu'):
     return V, atoms_info
 
 def getAtomInfo(atoms,device,nei_num=50):
-    atoms_coord=torch.stack([torch.tensor(atom['coordinate']) for atom in  atoms])
+    atoms_coord=torch.stack([torch.as_tensor(atom['coordinate']) for atom in  atoms])
     atoms_distance=distance(atoms_coord[None,:],atoms_coord[:,None])
     values,indices=atoms_distance.topk(nei_num+1,largest=False)
-
+    values,indices = values[:,1:],indices[:,1:] # exclude self
     atoms_rads, atoms_vecs, atoms_nei_idxs=getInfo(atoms_coord,indices,values,nei_num)
-    atoms_rads=torch.tensor(atoms_rads,device=device).float()
+    atoms_rads=torch.stack(atoms_rads).to(device).float()
     atoms_vecs=torch.stack(atoms_vecs).to(device).float()
-    atoms_nei_idxs=torch.tensor(atoms_nei_idxs,device=device)
+    atoms_nei_idxs=torch.stack(atoms_nei_idxs).to(device)
     return atoms_rads, atoms_vecs, atoms_nei_idxs
 
 def embed(atoms, dim=3, device='cpu'):
@@ -57,39 +57,36 @@ def onehot(V0, atoms):
         if ele in tabel:
             V0[i, tabel[ele], 0] = 1
 
-@torch.jit.script
 def distance(x, y):
-    return torch.sqrt(((x-y)**2).sum(-1))
+    return ((x-y)**2).sum(-1)
 
-@torch.jit.script
-def unit_vector(x, y, mod):
-    return (x-y)/mod.clamp_min(1e-9)
+def unit_vector(x, y, mod, eps=1e-9):
+    z = x[None,:] - y
+    return z / mod[:,None].clamp_min(eps)
 
-@torch.jit.script
+sigma, n, miu = 1, 12, 12/11
+d_p,d_q=1/(sigma*(2*torch.pi)**0.5),1/(2*sigma**2)
 def radial_fn(Rab):
-    sigma, n, miu = 1, 11, 12/11
-    p,q=sigma*(2*torch.pi)**0.5,2*sigma**2
-    G=[1/p*torch.exp(-(Rab-miu*i).square()/q) for i in range(n+1)]
+    G=[d_p*torch.exp(-(Rab-miu*i).square()*d_q) for i in range(n)]
+    G = torch.stack(G,dim=-1)
     return G
 
-@torch.jit.script
 def eta(x):
     return F.softplus(x) - torch.tensor(2.0).log()
 
-@torch.jit.script
 def getInfo(atoms_coord:Tensor,indices:Tensor,values:Tensor,nei_num:int=50):
-    atoms_rads = torch.jit.annotate(List[List[List[Tensor]]], [])
-    atoms_vecs = torch.jit.annotate(List[Tensor], [])
-    atoms_nei_idxs = torch.jit.annotate(List[List[Tensor]], [])
+    atoms_rads = []
+    atoms_vecs = []
+    atoms_nei_idxs = []
     n=atoms_coord.size(0)
+    values = values.sqrt()
     for i in range(n):
-        rads, vecs, nei_idxs = torch.jit.annotate(List[List[Tensor]], []), torch.jit.annotate(List[Tensor], []), torch.jit.annotate(List[Tensor], [])
-        for j in range(1,nei_num+1): # exclude self
-            mod=values[i][j]
-            rads.append(radial_fn(mod))
-            vecs.append(unit_vector(atoms_coord[i], atoms_coord[indices[i][j]], mod))
-            nei_idxs.append(indices[i][j])
-        atoms_rads.append(rads)
-        atoms_vecs.append(torch.stack(vecs))
-        atoms_nei_idxs.append(nei_idxs)
+        rads, vecs, nei_idxs = [],[],[]
+        mod = values[i]
+        nei_idxs = indices[i]
+        rads = radial_fn(mod)
+        vecs = unit_vector(atoms_coord[i], atoms_coord[nei_idxs], mod)
+        atoms_rads.append(rads) # n 50 12
+        atoms_vecs.append(vecs) # n 50 3
+        atoms_nei_idxs.append(nei_idxs) # n 50
     return atoms_rads, atoms_vecs, atoms_nei_idxs

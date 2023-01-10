@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from utils import help, embed
+from utils import help, embed, getAtoms
 
 
 def testEmbed(dim=3):
@@ -63,13 +63,19 @@ def testDense():
 def testNet():
     from model import Net
     net = Net(device='cuda')
-    pred = net(atoms, atom_data)
+    pred = net(atoms, atom_data, [])
     return pred
 
+def testLoss(x,y):
+    y = torch.as_tensor([y],device=x.device)
+    loss_fn = torch.nn.HuberLoss()
+    loss = loss_fn(x,y)
+    return loss
 
 if __name__ == '__main__':
-    atoms, atom_info, rms = help('S_000041_026.pdb')
-    atom_data = [torch.tensor(info).to('cuda') for info in atom_info]
+    atoms, score = getAtoms('S_000041_026.pdb')
+    atoms, atom_info = help(atoms,device='cuda')
+    atom_data = [info.to('cuda') for info in atom_info]
     pred = testNet()
     # V = testEmbed()
     # V = testInteraction()
@@ -78,5 +84,6 @@ if __name__ == '__main__':
     # V = testNonLinearity()
     # E = testChannel()
     # pred = testDense()
-    print(pred.item(), rms)
+    loss = testLoss(pred,score)
+    print(score, pred.item(), loss.item())
     print('test finish!')

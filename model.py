@@ -22,7 +22,7 @@ class Net(nn.Module):
         self.to(device)
         self.device = device
 
-    def forward(self, V, atoms_info):
+    def forward(self, V, atoms_info, atoms_lens):
         '''
         For the input to the first network layer,
          we only have scalar features (angular order 𝑙 = 0) and
@@ -144,7 +144,7 @@ class Norm(nn.Module):
 
     def forward(self, V):
         for key in V:
-            V[key] = F.normalize(V[key], eps=self.eps)
+            V[key] = F.normalize(V[key], eps=self.eps, dim=-2)
         return V
 
 
@@ -161,16 +161,14 @@ class SelfInteractionLayer(nn.Module):
         self.bias = nn.Parameter(zeros_(torch.Tensor(output_dim)))
 
     def forward(self, V):
-        O = defaultdict(list)
         for key in V:
             if key == 0:  # need bias
-                O[key] = (torch.einsum('acm,cd->amd',
-                                       V[key], self.weight)+self.bias).permute(0, 2, 1)
+                V[key] = (torch.einsum('acm,cd->amd',
+                                       V[key], self.weight)+self.bias).transpose(-1,-2)
             else:
-                O[key] = torch.einsum('acm,cd->adm',
+                V[key] = torch.einsum('acm,cd->adm',
                                       V[key], self.weight)
-        del V
-        return O
+        return V
 
 
 class NonLinearity(nn.Module):
@@ -185,12 +183,13 @@ class NonLinearity(nn.Module):
         self.output_dim = output_dim
 
     def forward(self, V):
+        eps = 1e-9
         for key in V:
             if key == 0:
                 V[key] = eta(V[key])
             else:
                 temp = torch.sqrt(torch.einsum(
-                    'acm->ac', torch.square(V[key])))+self.bias[str(key)]
+                    'acm->ac', torch.square(V[key]))+eps)+self.bias[str(key)]
                 V[key] = torch.einsum('acm,ac->acm', V[key], eta(temp))
         assert V[0].shape[-1] == 1
         assert V[1].shape[-1] == 3
@@ -206,7 +205,8 @@ class Channel_mean(nn.Module):
         '''
         only V[0]
         '''
-        return torch.mean(V[0], dim=0).transpose(-1,-2)
+        # n d 1
+        return torch.mean(V[0], dim=0).squeeze(-1)
 
 def init_wb(m):
     if isinstance(m, nn.Linear):
