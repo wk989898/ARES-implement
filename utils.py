@@ -85,9 +85,6 @@ def radial_fn(Rab):
     G = torch.stack(G,dim=-1)
     return G
 
-def eta(x):
-    return F.softplus(x) - math.log(2.0)
-
 def getInfo(atoms_coord,indices,values,nei_num=50):
     atoms_rads = []
     atoms_vecs = []
@@ -104,3 +101,6 @@ def getInfo(atoms_coord,indices,values,nei_num=50):
         atoms_vecs.append(vecs) # n 50 3
         atoms_nei_idxs.append(nei_idxs) # n 50
     return atoms_rads, atoms_vecs, atoms_nei_idxs
+
+def eta(x):
+    return F.softplus(x) - math.log(2.0)
