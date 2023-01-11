@@ -1,4 +1,5 @@
 import re
+import math
 import torch
 import torch.nn.functional as F
 
@@ -65,21 +66,21 @@ def onehot(V0, atoms):
             V0[i, tabel[ele], 0] = 1
 
 def distance(x, y):
-    return ((x-y)**2).sum(-1)
+    return ((x-y).square()).sum(-1)
 
 def unit_vector(x, y, mod, eps=1e-9):
     z = x[None,:] - y
     return z / mod[:,None].clamp_min(eps)
 
 sigma, n, miu = 1, 12, 12/11
-d_p,d_q=1/(sigma*(2*torch.pi)**0.5),1/(2*sigma**2)
+d_p,d_q=1/(sigma*(2*torch.pi)**0.5),-1/(2*sigma**2)
 def radial_fn(Rab):
-    G=[d_p*torch.exp(-(Rab-miu*i).square()*d_q) for i in range(n)]
+    G=[d_p*torch.exp((Rab-miu*i).square()*d_q) for i in range(n)]
     G = torch.stack(G,dim=-1)
     return G
 
 def eta(x):
-    return F.softplus(x) - torch.tensor(2.0).log()
+    return F.softplus(x) - math.log(2.0)
 
 def getInfo(atoms_coord,indices,values,nei_num=50):
     atoms_rads = []

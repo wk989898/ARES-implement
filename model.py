@@ -144,7 +144,7 @@ class Norm(nn.Module):
 
     def forward(self, V):
         for key in V:
-            V[key] = F.normalize(V[key], eps=self.eps, dim=-2)
+            V[key] = V[key] / torch.sqrt(V[key].square().sum((-1,-2),keepdim=True)).clamp(min=self.eps)
         return V
 
 
@@ -188,8 +188,7 @@ class NonLinearity(nn.Module):
             if key == 0:
                 V[key] = eta(V[key])
             else:
-                temp = torch.sqrt(torch.einsum(
-                    'acm->ac', torch.square(V[key]))+eps)+self.bias[str(key)]
+                temp1 = torch.sqrt(V[key].square().sum(-1)).clamp(min=eps)+self.bias[str(key)]
                 V[key] = torch.einsum('acm,ac->acm', V[key], eta(temp))
         assert V[0].shape[-1] == 1
         assert V[1].shape[-1] == 3
@@ -205,7 +204,6 @@ class Channel_mean(nn.Module):
         '''
         only V[0]
         '''
-        # n d 1
         return torch.mean(V[0], dim=0).squeeze(-1)
 
 def init_wb(m):
