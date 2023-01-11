@@ -144,7 +144,7 @@ class Norm(nn.Module):
 
     def forward(self, V):
         for key in V:
-            V[key] = V[key] / torch.sqrt(V[key].square().sum((-1,-2),keepdim=True)).clamp(min=self.eps)
+            V[key] = V[key] / torch.sqrt(V[key].square().sum((-1,-2),keepdim=True).clamp(min=self.eps))
         return V
 
 
@@ -172,7 +172,7 @@ class SelfInteractionLayer(nn.Module):
 
 
 class NonLinearity(nn.Module):
-    def __init__(self, output_dim) -> None:
+    def __init__(self, output_dim, eps=1e-9) -> None:
         super().__init__()
         self.b1 = nn.Parameter(zeros_(torch.Tensor(output_dim)))
         self.b2 = nn.Parameter(zeros_(torch.Tensor(output_dim)))
@@ -181,14 +181,14 @@ class NonLinearity(nn.Module):
             '2': self.b2
         })
         self.output_dim = output_dim
+        self.eps = eps
 
     def forward(self, V):
-        eps = 1e-9
         for key in V:
             if key == 0:
                 V[key] = eta(V[key])
             else:
-                temp1 = torch.sqrt(V[key].square().sum(-1)).clamp(min=eps)+self.bias[str(key)]
+                temp = torch.sqrt(V[key].square().sum(-1).clamp(min=self.eps))+self.bias[str(key)]
                 V[key] = torch.einsum('acm,ac->acm', V[key], eta(temp))
         assert V[0].shape[-1] == 1
         assert V[1].shape[-1] == 3

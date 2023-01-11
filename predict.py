@@ -7,7 +7,6 @@ from data import ARESdataset
 from torch.utils.data import DataLoader
 
 
-
 def main(args):
     dataset = ARESdataset(args.dir)
     dataloader = DataLoader(dataset,batch_size=1,shuffle=True)
