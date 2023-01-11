@@ -72,10 +72,16 @@ def unit_vector(x, y, mod, eps=1e-9):
     z = x[None,:] - y
     return z / mod[:,None].clamp_min(eps)
 
-sigma, n, miu = 1, 12, 12/11
-d_p,d_q=1/(sigma*(2*torch.pi)**0.5),-1/(2*sigma**2)
+class Radial:
+    sigma=1
+    n=12
+    miu=12/11
+    mius=[12/11*i for i in range(12)]
+    p=1/((2*torch.pi)**0.5)
+    q=-1/(2**2)
+
 def radial_fn(Rab):
-    G=[d_p*torch.exp((Rab-miu*i).square()*d_q) for i in range(n)]
+    G=[Radial.p*torch.exp((Rab-miu).square()*Radial.q) for miu in Radial.mius]
     G = torch.stack(G,dim=-1)
     return G
 
