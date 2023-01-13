@@ -10,15 +10,15 @@ def main(args):
     print(args)
     train_dataset=ARESdataset(args.train_dir)
     valid_dataset=ARESdataset(args.valid_dir)
-    # train_dataloader=torch.utils.data.DataLoader(train_dataset,batch_size=1,shuffle=True)
-    # valid_dataloader=torch.utils.data.DataLoader(valid_dataset,batch_size=1,shuffle=True)
-    train_dataloader=torch.utils.data.DataLoader(train_dataset,batch_size=args.batch_size,shuffle=True,collate_fn=collate_fn)
-    valid_dataloader=torch.utils.data.DataLoader(valid_dataset,batch_size=args.batch_size,shuffle=True,collate_fn=collate_fn)
+    # train_dataloader=torch.utils.data.DataLoader(train_dataset,batch_size=1,num_workers=args.num_workers,shuffle=True)
+    # valid_dataloader=torch.utils.data.DataLoader(valid_dataset,batch_size=1,num_workers=args.num_workers,shuffle=True)
+    train_dataloader=torch.utils.data.DataLoader(train_dataset,batch_size=args.batch_size,num_workers=args.num_workers,shuffle=True,collate_fn=collate_fn)
+    valid_dataloader=torch.utils.data.DataLoader(valid_dataset,batch_size=args.batch_size,num_workers=args.num_workers,shuffle=True,collate_fn=collate_fn)
     net = Net(device=args.device)
     optimizer = torch.optim.Adam(net.parameters(), lr=args.lr)
     loss_fn = torch.nn.HuberLoss()
     if args.checkpoint is not None:
-        net.load_state_dict(torch.load(args.checkpoint))
+        net.load_state_dict(torch.load(args.checkpoint,map_location=args.device))
     for epoch in range(args.epochs):
         train_loss = 0
         net.train()
@@ -54,6 +54,7 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=10)
     parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--batch_size', type=int, default=4)
+    parser.add_argument('--num_workers', type=int, default=0)
     parser.add_argument('--accumulation_steps', type=int, default=8)
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--checkpoint', type=str, default=None)
