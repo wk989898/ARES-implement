@@ -2,7 +2,7 @@ from collections import defaultdict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from utils import eta
+from utils import eta, Y2
 from torch.nn.init import xavier_uniform_, zeros_
 from cg import clebsch_gordan, O3_clebsch_gordan
 
@@ -75,12 +75,12 @@ class R(nn.Module):
         )
 
     def forward(self, r):
+        r = r.transpose(-1, -2)
         assert r.shape[-1] == 12
         r = self.dense(r)
         return r
 
 
-@torch.jit.script
 def Y(dim: int, vecs):
     '''
     angular
@@ -90,7 +90,9 @@ def Y(dim: int, vecs):
     elif dim == 1:
         return vecs
     elif dim == 2:
-        r2 = torch.sum(vecs**2, dim=-1).clamp_(min=1e-9)
+        eps = 1e-9
+        # return Y2(vecs)
+        r2 = torch.sum(vecs**2, dim=-1) + eps
         x, y, z = vecs[..., 0], vecs[..., 1], vecs[..., 2]
         return torch.stack([x * y / r2,
                             y * z / r2,
@@ -144,7 +146,9 @@ class Norm(nn.Module):
 
     def forward(self, V):
         for key in V:
-            V[key] = V[key] / torch.sqrt(V[key].square().sum((-1,-2),keepdim=True).clamp(min=self.eps))
+            V[key] = V[key] / \
+                torch.sqrt(V[key].square().sum(
+                    (-1, -2), keepdim=True) + self.eps)
         return V
 
 
@@ -164,7 +168,7 @@ class SelfInteractionLayer(nn.Module):
         for key in V:
             if key == 0:  # need bias
                 V[key] = (torch.einsum('acm,cd->amd',
-                                       V[key], self.weight)+self.bias).transpose(-1,-2)
+                                       V[key], self.weight)+self.bias).transpose(-1, -2)
             else:
                 V[key] = torch.einsum('acm,cd->adm',
                                       V[key], self.weight)
@@ -188,7 +192,8 @@ class NonLinearity(nn.Module):
             if key == 0:
                 V[key] = eta(V[key])
             else:
-                temp = torch.sqrt(V[key].square().sum(-1).clamp(min=self.eps))+self.bias[str(key)]
+                temp = torch.sqrt(
+                    V[key].square().sum(-1) + self.eps) + self.bias[str(key)]
                 V[key] = torch.einsum('acm,ac->acm', V[key], eta(temp))
         assert V[0].shape[-1] == 1
         assert V[1].shape[-1] == 3
@@ -205,6 +210,7 @@ class Channel_mean(nn.Module):
         only V[0]
         '''
         return torch.mean(V[0], dim=0).squeeze(-1)
+
 
 def init_wb(m):
     if isinstance(m, nn.Linear):

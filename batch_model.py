@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from utils import embed, eta
+from utils import embed, eta, Y2
 import torch.nn.functional as F
 from collections import defaultdict
 from cg import clebsch_gordan, O3_clebsch_gordan
@@ -77,6 +77,7 @@ class R(nn.Module):
         )
 
     def forward(self, r):
+        r = r.transpose(-1, -2)
         assert r.shape[-1] == 12
         r = self.dense(r)
         return r
@@ -87,10 +88,11 @@ def Y(dim, vecs):
     angular
     '''
     if dim == 0:
-        return torch.ones((*vecs.shape[:3], 1),device=vecs.device)
+        return torch.ones((*vecs.shape[:3], 1), device=vecs.device)
     elif dim == 1:
         return vecs
     elif dim == 2:
+        # return Y2(vecs)
         r2 = vecs.square().sum(dim=-1).clamp(min=1e-9)
         x, y, z = vecs[..., 0], vecs[..., 1], vecs[..., 2]
         return torch.stack([x * y / r2,
@@ -120,8 +122,9 @@ class Convolution(nn.Module):
         O = defaultdict(list)
         atoms_rads, atoms_vecs, atoms_nei_idxs = atoms_info
         r = self.radial(atoms_rads)
-        atoms_nei_idxs = rearrange(atoms_nei_idxs,'b n l -> b (n l)')
-        order = [rearrange(torch.stack([torch.index_select(vv, dim=0, index=nei_idxs) for vv,nei_idxs in zip(v,atoms_nei_idxs)]),'b (n l) d t -> b n l d t',n=v.size(1)) for v in V.values()]
+        atoms_nei_idxs = rearrange(atoms_nei_idxs, 'b n l -> b (n l)')
+        order = [rearrange(torch.stack([torch.index_select(vv, dim=0, index=nei_idxs) for vv, nei_idxs in zip(
+            v, atoms_nei_idxs)]), 'b (n l) d t -> b n l d t', n=v.size(1)) for v in V.values()]
         for i, f, o in self.C:
             y = self.angular(f, atoms_vecs)
             acif = torch.einsum('balc,balf,balci->bacif',
@@ -145,7 +148,9 @@ class Norm(nn.Module):
 
     def forward(self, V):
         for key in V:
-            V[key] = V[key] / torch.sqrt(V[key].square().sum((-1,-2),keepdim=True).clamp(min=self.eps))
+            V[key] = V[key] / \
+                torch.sqrt(V[key].square().sum(
+                    (-1, -2), keepdim=True).clamp(min=self.eps))
         return V
 
 
@@ -165,7 +170,7 @@ class SelfInteractionLayer(nn.Module):
         for key in V:
             if key == 0:  # need bias
                 V[key] = (torch.einsum('bacm,cd->bamd',
-                                       V[key], self.weight)+self.bias).transpose(-1,-2)
+                                       V[key], self.weight)+self.bias).transpose(-1, -2)
             else:
                 V[key] = torch.einsum('bacm,cd->badm',
                                       V[key], self.weight)
@@ -189,7 +194,8 @@ class NonLinearity(nn.Module):
             if key == 0:
                 V[key] = eta(V[key])
             else:
-                temp = torch.sqrt(V[key].square().sum(-1).clamp(min=self.eps))+self.bias[str(key)]
+                temp = torch.sqrt(
+                    V[key].square().sum(-1).clamp(min=self.eps))+self.bias[str(key)]
                 V[key] = torch.einsum('bacm,bac->bacm', V[key], eta(temp))
         assert V[0].shape[-1] == 1
         assert V[1].shape[-1] == 3
@@ -206,8 +212,8 @@ class Channel_mean(nn.Module):
         only V[0]
         '''
         E = V[0]
-        for i,l in enumerate(atoms_lens):
-            E[i,l:]=0
+        for i, l in enumerate(atoms_lens):
+            E[i, l:] = 0
         return E.sum(dim=1).squeeze(-1)/atoms_lens.unsqueeze(-1)
 
 
