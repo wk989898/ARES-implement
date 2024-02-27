@@ -92,19 +92,16 @@ class Radial:
     miu = 12/11
     mius = [12/11*i for i in range(12)]
     p = 1/((2*np.pi)**0.5)
-    q = -1/(2**2)
+    q = -1/2
 
 
 @numba.njit
 def radial_fn(Rab):
-    q = -1/(2**2)
+    q = -1/2
     p = 1/((2*np.pi)**0.5)
     mius = [12/11*i for i in range(12)]
-    G = [p * np.square(np.exp((Rab-miu))*q)
+    G = [p * np.exp(np.square(Rab-miu)*q)
          for miu in mius]
-    # G = [Radial.p * np.square(np.exp((Rab-miu))*Radial.q)
-    #      for miu in Radial.mius]
-    # G = np.stack(G, axis=-1)
     return G
 
 
